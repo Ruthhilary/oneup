@@ -44,6 +44,9 @@
     if (toastT) clearTimeout(toastT);
     toastT = setTimeout(function () { el.classList.remove('on'); }, 3800);
   }
+  // surface any script error instead of failing silently
+  window.addEventListener('error', function (ev) { try { toast('Script error: ' + (ev.message || 'see console')); } catch (e) {} });
+  console.log('OneUp app.js loaded');
 
   // --------------------------------------------------------------- router
   var pages = { landing: $('#page-landing'), auth: $('#page-auth'), app: $('#page-app'), admin: $('#page-admin') };
