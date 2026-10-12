@@ -1,9 +1,12 @@
 {
   "name": "oneup",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "OneUp — subscription ride service for Lagos. Clickable front-end prototype (landing + rider & driver apps).",
+  "description": "OneUp — subscription ride service for Lagos. Static front-end + Node backend (accounts, qualification, trips persist to SQLite).",
   "scripts": {
-    "start": "python3 -m http.server 8000"
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

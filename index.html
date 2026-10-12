@@ -149,7 +149,7 @@
   <div class="appbar"><div class="appbar-in">
     <div class="brand" data-home><span class="mk"><svg viewBox="0 0 24 24"><path d="M12 3L4 11h4v8h8v-8h4L12 3z" fill="#fff"/></svg></span><span class="wordmark" style="font-size:18px">One<span class="u">Up</span></span></div>
     <span class="role" id="app-role">Rider</span>
-    <button class="logout" data-home>Log out</button>
+    <button class="logout" data-logout>Log out</button>
   </div></div>
 
   <div class="stage"><div class="phone"><div class="screen">
@@ -176,7 +176,7 @@
         </div>
         <button class="btn solid block" style="margin-top:12px" data-go="r-book">Book a ride</button>
         <p class="xs muted" style="margin:18px 0 6px;letter-spacing:.1em;text-transform:uppercase;font-weight:700">Recent</p>
-        <div class="card"><div class="listrow"><div><div class="lt">Yaba → Lekki</div><div class="ls">Yesterday</div></div><span class="num muted">14.2 km</span></div><div class="listrow"><div><div class="lt">Home → Ikeja</div><div class="ls">Mon</div></div><span class="num muted">11.0 km</span></div></div>
+        <div class="card" id="r-recent"></div>
       </div>
 
       <div class="app-screen" data-screen="r-book">
@@ -210,14 +210,8 @@
       </div>
 
       <div class="app-screen" data-screen="r-trips">
-        <div class="vhead"><h2>Your trips</h2><p>This billing cycle</p></div>
-        <div class="card">
-          <div class="listrow"><div><div class="lt">Lekki → Victoria Island</div><div class="ls">Today · flat fare</div></div><span class="num muted">9.2 km</span></div>
-          <div class="listrow"><div><div class="lt">Yaba → Lekki</div><div class="ls">Yesterday</div></div><span class="num muted">14.2 km</span></div>
-          <div class="listrow"><div><div class="lt">Home → Ikeja</div><div class="ls">Mon · no surge</div></div><span class="num muted">11.0 km</span></div>
-          <div class="listrow"><div><div class="lt">Surulere → Yaba</div><div class="ls">Sun</div></div><span class="num muted">6.4 km</span></div>
-          <div class="listrow"><div><div class="lt">Ikeja → Maryland</div><div class="ls">Fri</div></div><span class="num muted">5.1 km</span></div>
-        </div>
+        <div class="vhead"><h2>Your trips</h2><p>Saved to your account</p></div>
+        <div class="card" id="r-trips-list"></div>
         <p class="xs muted" style="text-align:center;margin-top:12px">Every trip billed from credits — ₦0 surge, all cycle.</p>
       </div>
 
@@ -233,7 +227,7 @@
         <div class="card"><div class="car-badge"><div class="avatar">AO</div><div><b>Ada Okeke</b><p class="sm muted">ada@example.com</p></div></div></div>
         <div class="card"><div class="row"><span class="sm muted">Payment method</span><b class="sm">Card ending 4821</b></div><div class="row" style="margin-top:8px"><span class="sm muted">Next charge</span><b class="sm num">₦80,000 · in 18 days</b></div><div class="row" style="margin-top:8px"><span class="sm muted">Member since</span><b class="sm">Oct 2026</b></div></div>
         <div class="card"><div class="row"><span class="sm">Payment history</span><span class="pill good">All paid</span></div></div>
-        <div class="spacer"></div><button class="btn line block" style="margin-top:12px" data-home>Log out</button>
+        <div class="spacer"></div><button class="btn line block" style="margin-top:12px" data-logout>Log out</button>
       </div>
 
       <!-- ===== DRIVER ===== -->
@@ -251,7 +245,7 @@
         <div class="banner ok" id="dv-qbanner" style="margin-bottom:14px"><span><b>You’re qualified.</b> 2018+ vehicle verified · inspection passed · background cleared. You’re cleared to drive.</span></div>
         <div class="row" style="margin:2px 0 12px"><div><p class="muted sm">Welcome back</p><h2>Emeka</h2></div><span class="pill on">Gold driver</span></div>
         <div class="metrics">
-          <div class="metric"><div class="k">Today</div><div class="v num">₦18,400</div><div class="d">8 trips · 153 km</div></div>
+          <div class="metric"><div class="k">Today</div><div class="v num" id="dv-today">₦18,400</div><div class="d">0% commission</div></div>
           <div class="metric"><div class="k">This week</div><div class="v num">₦58,200</div><div class="d">of ₦70,000 floor</div></div>
         </div>
         <div class="card" style="margin-top:10px"><div class="row"><span class="sm">Weekly guaranteed floor</span><b class="num sm">₦70,000</b></div><div class="tier-track" aria-hidden="true"><span class="tier-seg fill"></span><span class="tier-seg fill"></span><span class="tier-seg fill"></span><span class="tier-seg"></span></div><p class="xs muted" style="margin-top:8px">The floor tops you up if a slow week falls short.</p></div>
@@ -263,7 +257,7 @@
         <div class="vhead"><h2>Jobs</h2></div>
         <div class="banner ok" style="margin-bottom:14px"><span><b>Cleared to drive.</b> Your 2018+ car, documents, inspection and background are all verified.</span></div>
         <div class="card"><div class="row"><div><b id="d-status">You’re offline</b><p class="xs muted">Go online for priority matches</p></div><div class="toggle" id="d-toggle" role="switch" aria-checked="false" tabindex="0"></div></div></div>
-        <div class="metrics" style="margin-top:4px"><div class="metric"><div class="k">Today</div><div class="v num">₦18,400</div></div><div class="metric"><div class="k">Trips</div><div class="v num">8</div></div></div>
+        <div class="metrics" style="margin-top:4px"><div class="metric"><div class="k">Today</div><div class="v num" id="dv-jobs-today">₦18,400</div></div><div class="metric"><div class="k">Commission</div><div class="v num">₦0</div></div></div>
         <p class="xs muted" style="text-align:center;margin-top:14px">Slide the switch above to start receiving jobs.</p>
       </div>
 
@@ -293,20 +287,15 @@
       </div>
 
       <div class="app-screen" data-screen="dv-done">
-        <div class="center-stack" style="flex:0;padding-top:24px"><h2>Trip complete</h2><p>₦1,104 added — you keep all of it</p></div>
-        <div class="card"><div class="row"><span class="muted">This trip</span><b class="num good">+₦1,104</b></div><div class="row" style="margin-top:6px"><span class="muted">Today’s total</span><b class="num">₦19,504</b></div><div class="row" style="margin-top:6px"><span class="muted">Commission taken</span><b class="num">₦0</b></div></div>
+        <div class="center-stack" style="flex:0;padding-top:24px"><h2>Trip complete</h2><p>You keep all of it — saved to your account</p></div>
+        <div class="card"><div class="row"><span class="muted">This trip</span><b class="num good" id="dv-done-amt">+₦1,104</b></div><div class="row" style="margin-top:6px"><span class="muted">Today’s total</span><b class="num" id="dv-done-total">₦19,504</b></div><div class="row" style="margin-top:6px"><span class="muted">Commission taken</span><b class="num">₦0</b></div></div>
         <div class="card"><div class="row"><span class="sm">Progress to Platinum</span><span class="pill">41 trips to go</span></div></div>
         <div class="spacer"></div><button class="btn solid block" style="margin-top:12px" data-go="dv-online">Back online</button>
       </div>
 
       <div class="app-screen" data-screen="dv-trips">
-        <div class="vhead"><h2>Your jobs</h2><p>Today · 0% commission</p></div>
-        <div class="card">
-          <div class="listrow"><div><div class="lt">Lekki → Victoria Island</div><div class="ls">9.2 km · 09:41</div></div><span class="num good">+₦1,104</span></div>
-          <div class="listrow"><div><div class="lt">Ikoyi → Lekki</div><div class="ls">7.8 km · 08:55</div></div><span class="num good">+₦936</span></div>
-          <div class="listrow"><div><div class="lt">Yaba → Ikoyi</div><div class="ls">12.4 km · 08:10</div></div><span class="num good">+₦1,488</span></div>
-          <div class="listrow"><div><div class="lt">Surulere → Yaba</div><div class="ls">6.1 km · 07:30</div></div><span class="num good">+₦732</span></div>
-        </div>
+        <div class="vhead"><h2>Your jobs</h2><p>Saved to your account · 0% commission</p></div>
+        <div class="card" id="dv-trips-list"></div>
         <p class="xs muted" style="text-align:center;margin-top:12px">Paid per kilometre — never a cut to OneUp.</p>
       </div>
 
@@ -319,7 +308,7 @@
         <div class="vhead"><h2>Account</h2></div>
         <div class="card"><div class="car-badge"><div class="avatar">EO</div><div><b>Emeka Obi</b><p class="sm muted">+234 802 555 1212</p></div></div></div>
         <div class="card"><div class="row"><span class="sm muted">Tier</span><span class="pill on">Gold · +₦35k/mo</span></div><div class="row" style="margin-top:8px"><span class="sm muted">Payout account</span><b class="sm">GTBank ••• 2290</b></div><div class="row" style="margin-top:8px"><span class="sm muted">Weekly floor</span><b class="sm num">₦70,000</b></div></div>
-        <div class="spacer"></div><button class="btn line block" style="margin-top:12px" data-home>Log out</button>
+        <div class="spacer"></div><button class="btn line block" style="margin-top:12px" data-logout>Log out</button>
       </div>
 
     </div>
@@ -374,6 +363,7 @@
   <p class="src">Sources: <a href="https://wheelzar.com/is-bolt-cheaper-than-uber-in-lagos/">Wheelzar</a>, <a href="https://transportlog.com.ng/bolt-vs-uber-nigeria-2026-prices-safety-which-is-better/">TransportLog</a>, <a href="https://thecable.ng/were-struggling-to-survive-bolt-uber-drivers-begin-strike-over-low-fares-25-commission-rate">TheCable</a>, <a href="https://techcabal.com/2025/08/05/bolt-indrive-drivers-earning/">TechCabal</a>, <a href="https://businessday.ng/transport/article/lagos-commuters-cut-back-on-ride-hailing-as-fares-rise/">BusinessDay</a>.</p>
 </div></div>
 
+<div id="toast" role="status" aria-live="polite"></div>
 <script src="app.js"></script>
 </body>
 </html>

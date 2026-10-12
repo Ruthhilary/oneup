@@ -2,30 +2,21 @@
 
 A subscription ride service for Lagos (and, next, other African cities). Members pay one monthly bill and ride on distance credits — no surge, flat fares, inspected cars from 2018 or newer, and drivers who earn more and steadier.
 
-This repo is a **clickable prototype**: a single static web page with a marketing landing page, a sign‑in / create‑account flow, and two working app demos — one for **riders**, one for **drivers** — plus the pricing research behind the model (see the "Business case" link in the footer).
+This is a working prototype: a marketing landing page, a sign‑in / create‑account flow, and two app dashboards — one for **riders**, one for **drivers** — backed by a small **Node server** that persists accounts, driver qualification status, and trips to a local SQLite database. Pricing research is behind the "Business case" link in the footer.
 
-> It's a front‑end prototype only. No real accounts, payments, or backend — all data is for demonstration.
+> Prototype, not production: passwords are hashed but there's no email verification, HTTPS, or payment processing. For demo convenience, signing in with a new email creates that account.
 
 ## Run it on localhost
 
-You only need a static file server. Pick whichever you have.
+You need **Node 22 or newer** (for the built‑in SQLite module). No `npm install` — the server uses only Node built‑ins.
 
-**Option A — Python (already on macOS):**
 ```bash
 cd oneup
-python3 -m http.server 8000
+node server.js       # or: npm start
 ```
-Then open <http://localhost:8000>.
+Then open <http://localhost:3000>. The server serves the site **and** the API, and creates `oneup.db` on first run. Set a different port with `PORT=4000 node server.js`.
 
-**Option B — Node:**
-```bash
-cd oneup
-npx serve .
-```
-(or `npm start`, which runs the Python server above)
-
-**Option C — just open the file:**
-Double‑click `index.html`, or open it in your browser. It works from the file system too, though a local server is closer to real conditions.
+To reset all data, stop the server and delete `oneup.db`.
 
 ## What's inside
 
@@ -61,13 +52,31 @@ Drivers are paid **₦120/km at 0% commission**, with a guaranteed weekly floor 
 
 ## Tech
 
-Plain HTML, CSS and vanilla JavaScript — no build step, no dependencies, no framework. Edit and refresh.
+Vanilla HTML/CSS/JS front end + a zero‑dependency Node backend. No build step, no frameworks, no `node_modules`.
 
 ```
 index.html   markup: landing, auth, phone app shell + all dashboard views
 styles.css   all styling (clean, minimal, theme-aware light/dark)
-app.js       routing, auth, tabs, rider flows, driver qualification + job flows
+app.js       front end: routing, auth, dashboards, flows — calls the API
+server.js    Node backend (http + node:sqlite + node:crypto): serves site + JSON API
+oneup.db     SQLite database, created at runtime (gitignored)
 ```
+
+### API
+
+All JSON. Auth via `Authorization: Bearer <token>` (token stored client‑side after signup/login).
+
+| Method & path | Purpose |
+|---|---|
+| `POST /api/signup` | Create account `{role,name,email,password,plan?}` → `{token,user}` |
+| `POST /api/login` | Sign in `{role,email,password}` → `{token,user}` |
+| `GET /api/me` | Current user |
+| `POST /api/plan` | Rider: change plan `{plan}` |
+| `POST /api/qualification` | Driver: `{action:'vehicle'|'doc'|'inspection'|'background'|'submit', ...}` (2018+ enforced server‑side) |
+| `GET /api/trips` | List the user's trips |
+| `POST /api/trips` | Record a trip `{from,to,km}` — updates rider credits or driver earnings |
+
+Data persists across refreshes and restarts. Qualification can't be faked: the server rejects a pre‑2018 vehicle and won't mark a driver qualified until all four checks are stored.
 
 ## Structure of a real build (next step)
 

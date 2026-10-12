@@ -1,6 +1,10 @@
 # OS
 .DS_Store
 
+# Local database (created at runtime)
+oneup.db
+oneup.db-*
+
 # Node (only if you add tooling later)
 node_modules/
 npm-debug.log*
