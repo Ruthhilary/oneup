@@ -33,9 +33,21 @@ Double‑click `index.html`, or open it in your browser. It works from the file 
 |------|---------------|
 | **Landing page** | Hero, why OneUp, how it works, the apps, plans & pricing, drive-with-OneUp, footer |
 | **Sign in / Create account** | Choose Rider or Driver, then the platform |
-| **Rider app** | Pick a plan → home with live credit balance → book → match → ride → rate |
-| **Driver app** | Add vehicle → earnings, weekly floor, tier → go online → accept → trip → payout |
+| **Rider dashboard** | Bottom-tab app: Home (live credits, bill, usage) · Book (book → match → ride → rate) · Trips · Plan (switch) · Account |
+| **Driver dashboard** | Bottom-tab app: Home (earnings, floor, tier) · Jobs (go online → accept → trip → payout) · Trips · Vehicle · Account |
+| **Driver qualification** | A 4-step gate every new driver must clear before any job: **vehicle 2018+** (older is rejected), **documents**, **inspection**, **background check**. Jobs stay locked until all four pass. |
 | **Business case** | Pricing research: rider savings, driver earnings, unit economics (footer link) |
+
+### Driver qualification gate
+
+Drivers use **their own cars**, so before they can accept a single job they must pass:
+
+1. **Vehicle 2018+** — enter make, model and year. A 2017-or-older car is refused and can't continue.
+2. **Documents** — driver's licence, vehicle registration, insurance, roadworthiness certificate, proof the car is theirs.
+3. **Inspection** — book and pass a safety & condition check.
+4. **Background check** — identity and driving-history verification.
+
+Only when all four are verified do the **Jobs** and **Trips** tabs unlock, and the driver sees a clear "you're cleared to drive" confirmation before taking work. (Sign in as a driver to see an already-qualified account; create a new driver account to walk the funnel.)
 
 ## Pricing model (Lagos, ₦)
 
@@ -49,7 +61,13 @@ Drivers are paid **₦120/km at 0% commission**, with a guaranteed weekly floor 
 
 ## Tech
 
-Plain HTML, CSS and vanilla JavaScript in one file (`index.html`). No build step, no dependencies, no framework. Edit the file and refresh.
+Plain HTML, CSS and vanilla JavaScript — no build step, no dependencies, no framework. Edit and refresh.
+
+```
+index.html   markup: landing, auth, phone app shell + all dashboard views
+styles.css   all styling (clean, minimal, theme-aware light/dark)
+app.js       routing, auth, tabs, rider flows, driver qualification + job flows
+```
 
 ## Structure of a real build (next step)
 
