@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}img{max-width:100%}html,body{margin:0}</style>
+<title>OneUp</title>
+<meta name="description" content="Subscription ride service for Lagos — marketing site with sign-in and clickable rider and driver platforms.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* Clean, minimal, type-led. Flow: landing → auth → app platform (rider or driver). */
+:root{
+  --paper:#FFFFFF; --faint:#F6F6F3; --ink:#111417; --ink-2:#5E646A; --line:#E7E7E2;
+  --accent:#2340D9; --accent-ink:#FFFFFF; --good:#0E7A50;
+  --r:12px;
+  --display:"Schibsted Grotesk",-apple-system,system-ui,sans-serif;
+  --body:"Hanken Grotesk",-apple-system,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0C0E10; --faint:#14171A; --ink:#ECEEEF; --ink-2:#9AA0A6; --line:#23272B;
+  --accent:#7B92FF; --accent-ink:#0C0E10; --good:#49C58C; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0C0E10; --faint:#14171A; --ink:#ECEEEF; --ink-2:#9AA0A6; --line:#23272B;
+  --accent:#7B92FF; --accent-ink:#0C0E10; --good:#49C58C; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--display);margin:0;line-height:1.06;letter-spacing:-.02em;text-wrap:balance;font-weight:700}
+p{margin:0}
+.num{font-variant-numeric:tabular-nums}
+.good{color:var(--good)}
+a{color:inherit;text-decoration:none}
+.page{display:none}.page.on{display:block}
+.wrap{max-width:1060px;margin:0 auto;padding-left:28px;padding-right:28px}
+@media(max-width:600px){.wrap{padding-left:20px;padding-right:20px}}
+.eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2);font-weight:600}
+.lead{color:var(--ink-2);font-size:18px;max-width:58ch;line-height:1.5}
+
+/* ---------- buttons ---------- */
+.btn{font-family:var(--body);font-weight:600;font-size:15px;border:1px solid transparent;border-radius:9px;padding:11px 18px;cursor:pointer;display:inline-block;text-align:center;white-space:nowrap;transition:opacity .15s,background .15s}
+.btn.block{width:100%;padding:13px}
+.btn.solid{background:var(--ink);color:var(--paper)}
+.btn.solid:hover{opacity:.88}
+.btn.line{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.line:hover{border-color:var(--ink-2)}
+.btn.accent{background:var(--accent);color:var(--accent-ink)}
+.btn.sm{padding:8px 14px;font-size:14px}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* ---------- nav ---------- */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--paper);border-bottom:1px solid var(--line)}
+.nav-in{max-width:1060px;margin:0 auto;padding:16px 28px;display:flex;align-items:center;gap:18px}
+@media(max-width:600px){.nav-in{padding:14px 20px}}
+.brand{display:flex;align-items:center;gap:9px;cursor:pointer}
+.mk{width:26px;height:26px;border-radius:6px;background:var(--ink);display:grid;place-items:center;flex:none}
+.mk svg{width:15px;height:15px}
+.wordmark{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.03em}
+.wordmark .u{color:var(--accent)}
+.nav-links{display:flex;gap:26px;margin-left:14px}
+.nav-links a{color:var(--ink-2);font-weight:500;font-size:14.5px;cursor:pointer}
+.nav-links a:hover{color:var(--ink)}
+.nav-right{margin-left:auto;display:flex;gap:14px;align-items:center}
+.signin-link{color:var(--ink);font-weight:600;font-size:14.5px;cursor:pointer}
+@media(max-width:780px){.nav-links{display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:96px 0 80px;border-bottom:1px solid var(--line)}
+@media(max-width:600px){.hero{padding:60px 0 52px}}
+.hero h1{font-size:clamp(40px,8vw,74px);font-weight:800;letter-spacing:-.035em;margin:20px 0 22px;max-width:16ch}
+.hero .lead{font-size:clamp(17px,2.4vw,21px)}
+.hero-cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:34px}
+.hero-stats{display:flex;gap:40px;flex-wrap:wrap;margin-top:56px;padding-top:28px;border-top:1px solid var(--line)}
+.hero-stats .s b{font-family:var(--display);font-size:30px;font-weight:700;display:block;letter-spacing:-.02em}
+.hero-stats .s span{font-size:14px;color:var(--ink-2)}
+
+/* ---------- generic section ---------- */
+.sec{padding:84px 0}
+@media(max-width:600px){.sec{padding:56px 0}}
+.sec-head{max-width:60ch}
+.sec h2{font-size:clamp(26px,4vw,40px);font-weight:700;letter-spacing:-.025em;margin:10px 0 0}
+.sec .lead{margin-top:16px}
+
+/* columns with hairline tops (no cards, no shadows) */
+.cols{display:grid;gap:0;margin-top:56px}
+.cols.c4{grid-template-columns:repeat(4,1fr)}
+.cols.c3{grid-template-columns:repeat(3,1fr)}
+.cols>div{padding:26px 26px 26px 0;border-top:2px solid var(--ink)}
+.cols.c4>div+div,.cols.c3>div+div{padding-left:26px;border-left:1px solid var(--line)}
+.cols h4{font-size:19px;font-weight:700;margin-bottom:8px}
+.cols p{font-size:15px;color:var(--ink-2)}
+.cols .idx{font-family:var(--display);font-size:14px;font-weight:600;color:var(--accent);margin-bottom:16px;display:block}
+@media(max-width:820px){.cols.c4{grid-template-columns:1fr 1fr}.cols.c4>div:nth-child(odd){border-left:0;padding-left:0}.cols.c4>div:nth-child(even){padding-left:26px}}
+@media(max-width:560px){.cols.c4,.cols.c3{grid-template-columns:1fr}.cols>div{border-left:0!important;padding-left:0!important}}
+
+/* problem statement */
+.statement{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.6vw,36px);letter-spacing:-.02em;line-height:1.22;max-width:24ch}
+.statement em{font-style:normal;color:var(--accent)}
+.statement+.lead{margin-top:28px}
+
+/* product split */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;margin-top:10px}
+@media(max-width:820px){.split{grid-template-columns:1fr;gap:36px}}
+.flist{display:flex;flex-direction:column}
+.flist .f{padding:20px 0;border-top:1px solid var(--line)}
+.flist .f:first-child{border-top:0;padding-top:0}
+.flist b{font-size:17px;font-weight:700}
+.flist p{font-size:15px;color:var(--ink-2);margin-top:3px}
+
+/* flat device preview */
+.device{width:270px;max-width:100%;margin:0 auto;border:1px solid var(--line);border-radius:26px;padding:8px;background:var(--faint)}
+.device .dsc{background:var(--paper);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.device .dtop{padding:14px 16px 2px;display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);font-weight:600}
+.device .dbody{padding:12px 16px 18px}
+.mini{border:1px solid var(--line);border-radius:12px;padding:13px}
+.mini+.mini{margin-top:10px}
+
+/* plans */
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:56px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+@media(max-width:760px){.plans{grid-template-columns:1fr}}
+.plan{padding:30px 26px;border-left:1px solid var(--line);display:flex;flex-direction:column;position:relative}
+.plan:first-child{border-left:0}
+@media(max-width:760px){.plan{border-left:0;border-top:1px solid var(--line)}.plan:first-child{border-top:0}}
+.plan.feat{background:var(--faint)}
+.plan .tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:14px;height:14px}
+.plan .pname{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.01em}
+.plan .price{font-family:var(--display);font-size:38px;font-weight:700;letter-spacing:-.03em;margin:10px 0 2px}
+.plan .price small{font-size:14px;color:var(--ink-2);font-weight:500;font-family:var(--body)}
+.plan .perkm{font-size:14px;color:var(--ink-2)}
+.plan .save{font-size:14px;color:var(--good);font-weight:600;margin-top:14px}
+.plan .fit{font-size:14px;color:var(--ink-2);margin:18px 0 22px;flex:1}
+
+/* inverted (auto-contrasting) section — the one bold moment */
+.invert{background:var(--ink);color:var(--paper)}
+.invert .eyebrow{color:var(--paper);opacity:.6}
+.invert .driver-in{display:grid;grid-template-columns:1.2fr .8fr;gap:48px;align-items:center}
+@media(max-width:760px){.invert .driver-in{grid-template-columns:1fr;gap:28px}}
+.invert h2{color:var(--paper);font-size:clamp(26px,4vw,40px)}
+.invert p{color:var(--paper);opacity:.72;margin-top:18px;max-width:46ch;font-size:16px}
+.invert .earn{font-family:var(--display);font-size:clamp(34px,5vw,52px);font-weight:700;letter-spacing:-.03em;margin-top:26px}
+.invert .earn span{font-size:16px;opacity:.6;font-family:var(--body);font-weight:400}
+.invert .btn.solid{background:var(--paper);color:var(--ink)}
+
+/* final + footer */
+.final{text-align:center;padding:100px 0;border-top:1px solid var(--line)}
+.final h2{font-size:clamp(30px,5vw,52px);font-weight:800;letter-spacing:-.03em}
+.footer{border-top:1px solid var(--line);padding:30px 0}
+.footer-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;font-size:14px;color:var(--ink-2)}
+.footer a{cursor:pointer}.footer a:hover{color:var(--ink)}
+.footer .fl{display:flex;gap:24px;flex-wrap:wrap}
+
+/* ---------- auth ---------- */
+#page-auth{display:none;min-height:100%;place-items:center;padding:48px 20px}
+#page-auth.on{display:grid}
+.auth{width:100%;max-width:400px}
+.auth .back{color:var(--ink-2);font-weight:600;font-size:14px;cursor:pointer;display:inline-block;margin-bottom:26px}
+.auth .back:hover{color:var(--ink)}
+.auth .brand{justify-content:center;margin-bottom:26px}
+.auth h3{font-size:24px;font-weight:700;text-align:center;letter-spacing:-.02em}
+.auth .asub{text-align:center;color:var(--ink-2);font-size:14px;margin:6px 0 26px}
+.roletog{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+.roletog button{font-family:var(--body);font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--paper);color:var(--ink-2);padding:14px;border-radius:10px;cursor:pointer;text-align:left}
+.roletog button small{display:block;font-weight:400;font-size:12px;margin-top:3px}
+.roletog button[aria-pressed="true"]{border-color:var(--ink);color:var(--ink)}
+.modetabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin-bottom:22px}
+.modetabs button{font-family:var(--body);font-weight:600;font-size:15px;border:0;background:0;color:var(--ink-2);padding:0 0 12px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.modetabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.field{margin-bottom:16px}
+.field label{font-size:13px;color:var(--ink-2);font-weight:600;display:block;margin-bottom:6px}
+.field input,.field select{width:100%;font-family:var(--body);font-size:15px;padding:12px 13px;border-radius:9px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+.field input:focus,.field select:focus{outline:0;border-color:var(--ink)}
+.auth-note{font-size:12.5px;color:var(--ink-2);text-align:center;margin-top:18px}
+
+/* ---------- app platform ---------- */
+#page-app{min-height:100%}
+.appbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--paper);border-bottom:1px solid var(--line)}
+.appbar-in{max-width:1060px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:12px}
+@media(max-width:600px){.appbar-in{padding:12px 20px}}
+.appbar .role{margin-left:4px;font-size:12px;font-weight:600;color:var(--ink-2);border:1px solid var(--line);padding:4px 10px;border-radius:20px}
+.appbar .logout{margin-left:auto;background:0;border:0;color:var(--ink-2);font-weight:600;font-size:14px;cursor:pointer;font-family:var(--body)}
+.appbar .logout:hover{color:var(--ink)}
+.stage{display:flex;justify-content:center;padding:30px 16px 8px}
+.phone{width:100%;max-width:384px;border:1px solid var(--line);border-radius:30px;padding:9px;background:var(--faint)}
+.screen{background:var(--paper);border:1px solid var(--line);border-radius:22px;overflow:hidden;height:680px;max-height:70vh;display:flex;flex-direction:column}
+.statusbar{display:flex;justify-content:space-between;align-items:center;padding:13px 20px 8px;font-size:11.5px;font-weight:600;flex:none;color:var(--ink-2)}
+.view{flex:1;overflow-y:auto;padding:4px 20px 20px}
+.app-screen{display:none;flex-direction:column;min-height:100%}
+.app-screen.on{display:flex}
+.app-screen h2{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.mark{display:flex;align-items:center;gap:8px;justify-content:center;margin:6px 0}
+.mark .mk{width:34px;height:34px}.mark .wordmark{font-size:24px}
+.center-stack{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px;text-align:center;padding:10px 0}
+.center-stack h2{font-size:24px}
+.center-stack p{color:var(--ink-2);font-size:14px;max-width:30ch;margin:6px auto 0}
+.spacer{flex:1}
+.sheet{border:1px solid var(--line);border-radius:12px;padding:16px}
+.sheet+.sheet{margin-top:11px}
+.sheet.fill{background:var(--faint)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.muted{color:var(--ink-2)}.sm{font-size:12.5px}.xs{font-size:11.5px}
+.pill{font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);color:var(--ink-2)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill.good{border-color:transparent;background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}
+.ring-wrap{display:flex;align-items:center;gap:18px}
+.ring{--p:70;width:86px;height:86px;border-radius:50%;flex:none;background:conic-gradient(var(--ink) calc(var(--p)*1%),var(--line) 0);display:grid;place-items:center}
+.ring .inner{width:68px;height:68px;border-radius:50%;background:var(--paper);display:grid;place-items:center;text-align:center}
+.ring .inner b{font-family:var(--display);font-size:19px;font-weight:700;line-height:1}
+.ring .inner span{font-size:10px;color:var(--ink-2)}
+.trip-line{display:flex;gap:11px;align-items:flex-start}
+.trip-line .track{display:flex;flex-direction:column;align-items:center;padding-top:5px}
+.trip-line .dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--ink)}
+.trip-line .dot.fill{background:var(--ink)}
+.trip-line .line{width:1.5px;flex:1;min-height:26px;background:var(--line)}
+.map{height:148px;border-radius:12px;background:repeating-linear-gradient(45deg,var(--faint) 0 14px,var(--paper) 14px 28px);border:1px solid var(--line);position:relative;overflow:hidden}
+.map .route{position:absolute;left:18%;right:18%;top:50%;height:2px;background:var(--ink);border-radius:2px}
+.map .pin{position:absolute;width:12px;height:12px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--ink);top:calc(50% - 6px)}
+.map .pin.a{left:16%}.map .pin.b{right:16%;background:var(--accent)}
+.car-badge{display:flex;gap:12px;align-items:center}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--faint);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--display);font-weight:700;flex:none}
+.stars{color:var(--ink);letter-spacing:3px;font-size:16px}
+.spin{width:42px;height:42px;border:3px solid var(--line);border-top-color:var(--ink);border-radius:50%;margin:0 auto;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pulse{animation:pl 1.5s ease-in-out infinite}
+@keyframes pl{0%,100%{opacity:1}50%{opacity:.4}}
+@media(prefers-reduced-motion:reduce){.spin,.pulse{animation:none}}
+.bignum{font-family:var(--display);font-size:32px;font-weight:700;letter-spacing:-.02em}
+.toggle{width:50px;height:29px;border-radius:20px;background:var(--line);border:0;position:relative;cursor:pointer;flex:none;transition:background .2s}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:var(--paper);transition:transform .2s}
+.toggle.on{background:var(--ink)}.toggle.on::after{transform:translateX(21px)}
+.tier-track{display:flex;gap:4px;margin-top:10px}
+.tier-seg{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.tier-seg.fill{background:var(--ink)}
+.demohint{background:var(--faint);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:11.5px;color:var(--ink-2);margin-bottom:12px}
+.guidebar{max-width:384px;margin:16px auto 34px;border:1px solid var(--line);border-radius:12px;padding:13px 16px;display:flex;gap:14px;align-items:center;justify-content:space-between}
+.guidebar .g-text{font-size:14px;font-weight:500;line-height:1.4;display:flex;gap:9px;align-items:baseline}
+.guidebar .g-text::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none;transform:translateY(-1px)}
+.guidebar .g-text b{font-weight:700}
+.guidebar .g-reset{font-size:13px;color:var(--ink-2);cursor:pointer;background:0;border:0;flex:none;font-family:var(--body)}
+.guidebar .g-reset:hover{color:var(--ink)}
+.field.app{margin:12px 0 0}
+
+/* ---------- business modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(10,12,14,.55);display:grid;place-items:start center;padding:32px 18px;z-index:70;overflow-y:auto}
+.overlay[hidden]{display:none}
+.obox{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:30px;max-width:640px;width:100%}
+.obox .close{float:right;background:0;border:1px solid var(--line);color:var(--ink-2);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:15px}
+.obox h3{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-bottom:10px}
+.obox h4{font-size:15px;font-weight:700;margin:26px 0 4px}
+.obox p{color:var(--ink-2);font-size:14px}
+.bars{margin:14px 0;display:flex;flex-direction:column;gap:10px}
+.bar-row{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}
+@media(max-width:520px){.bar-row{grid-template-columns:92px 1fr}}
+.bar-label{font-size:12.5px;font-weight:600}.bar-label small{display:block;color:var(--ink-2);font-weight:400;font-size:10.5px}
+.bar-track{height:28px;position:relative}
+.bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding:0 10px;font-size:12.5px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.b-a{background:var(--line);color:var(--ink)}.b-b{background:var(--ink-2);color:var(--paper)}.b-c{background:var(--ink);color:var(--paper)}.b-good{background:var(--good);color:#fff}
+.tbl{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px}
+.tbl th,.tbl td{text-align:right;padding:10px 12px;border-bottom:1px solid var(--line)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl thead th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);font-weight:700}
+.tbl td.num{font-variant-numeric:tabular-nums}.tbl tr:last-child td{border-bottom:0}
+.tblwrap{overflow-x:auto}
+.src{font-size:11.5px;color:var(--ink-2);margin-top:16px}.src a{text-decoration:underline}
+</style>
+
+<!-- =================== NAV =================== -->
+<nav class="nav" id="nav">
+  <div class="nav-in">
+    <div class="brand" data-home><span class="mk"><svg viewBox="0 0 24 24"><path d="M12 3L4 11h4v8h8v-8h4L12 3z" fill="#fff"/></svg></span><span class="wordmark">One<span class="u">Up</span></span></div>
+    <div class="nav-links">
+      <a data-scroll="why">Why OneUp</a>
+      <a data-scroll="how">How it works</a>
+      <a data-scroll="plans">Plans</a>
+      <a data-scroll="drive">Drive</a>
+    </div>
+    <div class="nav-right">
+      <span class="signin-link" data-auth="signin">Sign in</span>
+      <button class="btn solid sm" data-auth="create">Get started</button>
+    </div>
+  </div>
+</nav>
+
+<!-- =================== LANDING =================== -->
+<div class="page on" id="page-landing">
+  <header class="hero">
+    <div class="wrap">
+      <div class="eyebrow">Subscription rides · Lagos</div>
+      <h1>Rides you can count on.</h1>
+      <p class="lead">One monthly plan. One flat rate per kilometre. No surge, no haggling, no surprises — in inspected cars from 2018 or newer, with drivers who earn more and steadier.</p>
+      <div class="hero-cta">
+        <button class="btn solid" data-auth="create">Get started</button>
+        <button class="btn line" data-scroll="plans">See the plans</button>
+      </div>
+      <div class="hero-stats">
+        <div class="s"><b class="num">15–35%</b><span>cheaper than pay-per-ride</span></div>
+        <div class="s"><b class="num">0%</b><span>commission from drivers</span></div>
+        <div class="s"><b>No surge</b><span>one flat rate, always</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- WHY -->
+  <section class="sec" id="why">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">Why OneUp</div>
+        <h2>Four promises, every ride</h2>
+      </div>
+      <div class="cols c4">
+        <div><h4>No surge, ever</h4><p>One flat rate per kilometre. Peak hour, rain or holiday — the price never moves.</p></div>
+        <div><h4>Quality cars</h4><p>Every vehicle inspected, 2018 or newer. Curated, highly-rated drivers only.</p></div>
+        <div><h4>Fair driver pay</h4><p>Drivers keep 100% of their rate — zero commission — with a guaranteed weekly floor.</p></div>
+        <div><h4>One monthly bill</h4><p>Budget transport like a subscription. Know the number on the 1st, forget it after.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEM -->
+  <section class="sec" style="padding-top:0">
+    <div class="wrap">
+      <div class="eyebrow" style="margin-bottom:24px">The problem</div>
+      <p class="statement">In Lagos, every trip is a gamble on <em>the fare</em>, <em>the car</em>, and <em>the wait</em>.</p>
+      <p class="lead">A professional commuting to Victoria Island twice a day can spend ₦420,000 a month — up to 84% of a ₦500k salary. Drivers hand over 20–30% commission and absorb ₦550–600/litre fuel, so a hard 25-day month still nets only ₦272k–381k. Both sides want the same thing: a price they can predict.</p>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section class="sec" id="how" style="background:var(--faint);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head"><div class="eyebrow">How it works</div><h2>Three steps, then it's just driving</h2></div>
+      <div class="cols c3">
+        <div><span class="idx">01</span><h4>Pick a plan</h4><p>Choose Lite, Commuter or Pro. Each comes with a monthly bundle of distance credits, measured in kilometres.</p></div>
+        <div><span class="idx">02</span><h4>Ride on credits</h4><p>Book like any app. Fares draw from your credits at one flat rate — no cash, no surge multipliers.</p></div>
+        <div><span class="idx">03</span><h4>Top up only if needed</h4><p>Past your bundle, extra kilometres bill at a flat ₦135 — still under Bolt. Unused credits roll over one cycle.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRODUCT -->
+  <section class="sec">
+    <div class="wrap">
+      <div class="sec-head"><div class="eyebrow">The apps</div><h2>Made for both sides of the ride</h2></div>
+      <div class="split">
+        <div class="flist">
+          <div class="f"><b>Live credit balance</b><p>Riders see exactly how many kilometres are left this cycle, at a glance.</p></div>
+          <div class="f"><b>Priority matching</b><p>Members get matched first to the nearest curated driver, so pickups are fast.</p></div>
+          <div class="f"><b>Driver earnings dashboard</b><p>Drivers see today's pay, their weekly floor and tier progress in real time.</p></div>
+          <div class="f"><b>Rank up for more</b><p>Bronze to Platinum by punctuality and rating — unlocking bonuses and vehicle financing.</p></div>
+        </div>
+        <div class="device" aria-hidden="true">
+          <div class="dsc">
+            <div class="dtop"><span>9:41</span><span>OneUp</span></div>
+            <div class="dbody">
+              <p style="font-size:12px;color:var(--ink-2)">Good morning</p>
+              <h4 style="font-size:20px;margin:2px 0 14px;letter-spacing:-.02em">Ada</h4>
+              <div class="mini">
+                <div style="display:flex;gap:14px;align-items:center">
+                  <div class="ring" style="--p:85;width:66px;height:66px"><div class="inner" style="width:52px;height:52px"><b style="font-size:15px">527</b><span style="font-size:9px">km left</span></div></div>
+                  <div><p style="font-size:11px;color:var(--ink-2)">Commuter plan</p><p class="good" style="font-size:12px;font-weight:600;margin-top:4px">Flat ₦129/km</p><p style="font-size:11px;color:var(--ink-2)">no surge, ever</p></div>
+                </div>
+              </div>
+              <div class="mini" style="background:var(--ink);color:var(--paper);border:0;text-align:center;font-weight:600;font-size:14px">Book a ride</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLANS -->
+  <section class="sec" id="plans" style="background:var(--faint);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+    <div class="wrap">
+      <div class="sec-head"><div class="eyebrow">Plans · Lagos</div><h2>Priced against real fares</h2><p class="lead">Savings shown versus Bolt's ₦160/km sticker. Against real surge-hour fares, you save considerably more.</p></div>
+      <div class="plans" style="background:var(--paper)">
+        <div class="plan">
+          <div class="tag"></div>
+          <div class="pname">LITE</div>
+          <div class="price num">₦40,000<small> /mo</small></div>
+          <div class="perkm num">280 km · ₦143/km</div>
+          <div class="save">Save ~11%</div>
+          <div class="fit">Occasional riders — a few trips a week, errands, nights out.</div>
+          <button class="btn line block" data-auth="create" data-plan="Lite">Choose Lite</button>
+        </div>
+        <div class="plan feat">
+          <div class="tag">Most popular</div>
+          <div class="pname">COMMUTER</div>
+          <div class="price num">₦80,000<small> /mo</small></div>
+          <div class="perkm num">620 km · ₦129/km</div>
+          <div class="save">Save ~19%</div>
+          <div class="fit">Daily short-to-mid commute, both ways, 5–6 days a week.</div>
+          <button class="btn solid block" data-auth="create" data-plan="Commuter">Choose Commuter</button>
+        </div>
+        <div class="plan">
+          <div class="tag"></div>
+          <div class="pname">PRO</div>
+          <div class="price num">₦150,000<small> /mo</small></div>
+          <div class="perkm num">1,300 km · ₦115/km</div>
+          <div class="save">Save ~28%</div>
+          <div class="fit">Long daily commutes — e.g. mainland to Victoria Island.</div>
+          <button class="btn line block" data-auth="create" data-plan="Pro">Choose Pro</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DRIVE (inverted) -->
+  <section class="sec invert" id="drive">
+    <div class="wrap">
+      <div class="driver-in">
+        <div>
+          <div class="eyebrow">Drive with OneUp</div>
+          <h2>Earn more, with certainty</h2>
+          <p>Keep every naira of your ₦120/km — zero commission. Priority matching means more paid kilometres and less time circling for rides. A guaranteed weekly floor means a slow day never wrecks your week.</p>
+          <div class="earn num">₦340k–460k <span>/ month, typical</span></div>
+        </div>
+        <div><button class="btn solid" data-auth="create" data-role="driver">Sign up to drive</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL -->
+  <section class="final">
+    <div class="wrap">
+      <h2>One plan. Every ride.<br>No surprises.</h2>
+      <p class="lead" style="margin:18px auto 28px">Make getting across Lagos something you can count on.</p>
+      <button class="btn solid" data-auth="create">Create your account</button>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="wrap footer-in">
+      <div class="brand" data-home><span class="mk"><svg viewBox="0 0 24 24"><path d="M12 3L4 11h4v8h8v-8h4L12 3z" fill="#fff"/></svg></span><span class="wordmark" style="font-size:17px">One<span class="u">Up</span></span></div>
+      <div class="fl">
+        <a data-biz>Business case &amp; pricing research</a>
+        <a data-auth="signin">Sign in</a>
+      </div>
+      <span>© 2026 OneUp · Lagos · Demo</span>
+    </div>
+  </footer>
+</div>
+
+<!-- =================== AUTH =================== -->
+<div class="page" id="page-auth" hidden>
+  <div class="auth">
+    <span class="back" data-home>← Back</span>
+    <div class="brand" style="cursor:default;justify-content:center"><span class="mk"><svg viewBox="0 0 24 24"><path d="M12 3L4 11h4v8h8v-8h4L12 3z" fill="#fff"/></svg></span><span class="wordmark">One<span class="u">Up</span></span></div>
+    <h3 id="auth-title">Create your account</h3>
+    <p class="asub">It takes under a minute.</p>
+    <div class="roletog" role="group" aria-label="Account type">
+      <button data-role-pick="rider" aria-pressed="true">I'm a Rider<small>Book rides on a plan</small></button>
+      <button data-role-pick="driver" aria-pressed="false">I'm a Driver<small>Earn with OneUp</small></button>
+    </div>
+    <div class="modetabs" role="tablist">
+      <button role="tab" data-mode="create" aria-selected="true">Create account</button>
+      <button role="tab" data-mode="signin" aria-selected="false">Sign in</button>
+    </div>
+    <form id="authform" autocomplete="off">
+      <div class="field" id="f-name"><label for="a-name">Full name</label><input id="a-name" value="Ada Okeke"></div>
+      <div class="field"><label for="a-email">Email or phone</label><input id="a-email" value="ada@example.com"></div>
+      <div class="field"><label for="a-pass">Password</label><input id="a-pass" type="password" value="demo1234"></div>
+      <button class="btn solid block" id="authsubmit" type="submit" style="margin-top:4px">Create rider account</button>
+    </form>
+    <p class="auth-note">Demo only — no real account is created and no password is stored.</p>
+  </div>
+</div>
+
+<!-- =================== APP =================== -->
+<div class="page" id="page-app" hidden>
+  <div class="appbar">
+    <div class="appbar-in">
+      <div class="brand" data-home><span class="mk"><svg viewBox="0 0 24 24"><path d="M12 3L4 11h4v8h8v-8h4L12 3z" fill="#fff"/></svg></span><span class="wordmark" style="font-size:18px">One<span class="u">Up</span></span></div>
+      <span class="role" id="app-role">Rider</span>
+      <button class="logout" data-home>Log out</button>
+    </div>
+  </div>
+
+  <div class="stage"><div class="phone"><div class="screen">
+    <div class="statusbar"><span>9:41</span><span id="sb-role">OneUp</span></div>
+    <div class="view">
+
+      <!-- RIDER -->
+      <div class="app-screen" data-screen="r-plans">
+        <h2 style="margin:6px 0 2px">Choose your plan</h2>
+        <p class="muted sm">Switch or cancel anytime. Unused km roll over one cycle.</p>
+        <div class="sheet" style="margin-top:14px" data-plan="Lite" data-km="280">
+          <div class="row"><b>Lite</b><span class="num">₦40,000<span class="muted sm">/mo</span></span></div>
+          <div class="row sm muted" style="margin-top:4px"><span class="num">280 km · ₦143/km</span><span class="good">Save ~11%</span></div>
+          <button class="btn line block" style="margin-top:14px" data-pick="Lite">Choose Lite</button>
+        </div>
+        <div class="sheet fill" data-plan="Commuter" data-km="620" style="border-color:var(--ink)">
+          <div class="row"><b>Commuter</b><span class="pill on">Most popular</span></div>
+          <div class="row" style="margin-top:4px"><span></span><span class="num">₦80,000<span class="muted sm">/mo</span></span></div>
+          <div class="row sm muted" style="margin-top:4px"><span class="num">620 km · ₦129/km</span><span class="good">Save ~19%</span></div>
+          <button class="btn solid block" style="margin-top:14px" data-pick="Commuter">Choose Commuter</button>
+        </div>
+        <div class="sheet" data-plan="Pro" data-km="1300">
+          <div class="row"><b>Pro</b><span class="num">₦150,000<span class="muted sm">/mo</span></span></div>
+          <div class="row sm muted" style="margin-top:4px"><span class="num">1,300 km · ₦115/km</span><span class="good">Save ~28%</span></div>
+          <button class="btn line block" style="margin-top:14px" data-pick="Pro">Choose Pro</button>
+        </div>
+      </div>
+
+      <div class="app-screen" data-screen="r-home">
+        <div class="row" style="margin:6px 0 16px"><div><p class="muted sm">Good morning</p><h2 style="font-size:23px">Ada</h2></div><span class="pill" id="r-planbadge">Commuter</span></div>
+        <div class="sheet">
+          <div class="ring-wrap">
+            <div class="ring" id="r-ring"><div class="inner"><b id="r-kmleft">527</b><span>km left</span></div></div>
+            <div>
+              <p class="sm muted">This cycle · resets in 18 days</p>
+              <p style="margin-top:3px"><b class="num">620</b> <span class="muted sm" id="r-kmtotal-l">km total</span></p>
+              <p class="sm good" style="margin-top:8px">Flat ₦129/km · no surge</p>
+            </div>
+          </div>
+        </div>
+        <button class="btn solid block" style="margin-top:14px" data-go="r-book">Book a ride</button>
+        <p class="xs muted" style="margin:18px 0 8px;letter-spacing:.1em;text-transform:uppercase;font-weight:700">Recent</p>
+        <div class="sheet"><div class="row sm"><span>Yesterday · Yaba → Lekki</span><span class="num muted">14.2 km</span></div></div>
+        <div class="sheet"><div class="row sm"><span>Mon · Home → Ikeja</span><span class="num muted">11.0 km</span></div></div>
+      </div>
+
+      <div class="app-screen" data-screen="r-book">
+        <h2 style="margin:6px 0 12px">Where to?</h2>
+        <div class="sheet">
+          <div class="trip-line">
+            <div class="track"><span class="dot fill"></span><span class="line"></span><span class="dot"></span></div>
+            <div style="flex:1">
+              <div class="field app" style="margin-top:0"><label>Pickup</label><input value="Lekki Phase 1" aria-label="Pickup"></div>
+              <div class="field app"><label>Destination</label><input value="Victoria Island" aria-label="Destination"></div>
+            </div>
+          </div>
+        </div>
+        <div class="sheet"><div class="row"><div><b>OneUp Standard</b><p class="sm muted">Corolla class · 2018+</p></div><div style="text-align:right"><b class="num">9.2 km</b><p class="sm muted">~22 min</p></div></div></div>
+        <div class="sheet fill">
+          <div class="row"><span class="sm">Charged from credits</span><b class="num">9.2 km</b></div>
+          <div class="row" style="margin-top:6px"><span class="sm">Cash price</span><b class="num">₦0.00</b></div>
+          <div class="row" style="margin-top:8px"><span class="pill good">No surge · flat rate</span><span class="sm good">~₦700 under Bolt</span></div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:14px" data-go="r-matching">Confirm pickup</button>
+      </div>
+
+      <div class="app-screen" data-screen="r-matching">
+        <div class="center-stack"><div class="spin"></div><h2 style="margin-top:20px">Finding your ride</h2><p>Priority-matching a curated driver near Lekki Phase 1…</p></div>
+      </div>
+
+      <div class="app-screen" data-screen="r-matched">
+        <div class="map"><span class="pin a"></span><span class="route"></span><span class="pin b"></span></div>
+        <div class="sheet" style="margin-top:14px">
+          <div class="row"><span class="pill on">Arriving in 4 min</span><span class="num sm muted">EKY-482-LA</span></div>
+          <div class="car-badge" style="margin-top:14px"><div class="avatar">EO</div><div style="flex:1"><b>Emeka O.</b><p class="sm muted">Toyota Corolla 2020 · Silver</p></div><div style="text-align:right"><b class="num">4.9★</b><p class="xs muted">Gold driver</p></div></div>
+          <div class="row" style="margin-top:14px;gap:10px"><button class="btn line" style="flex:1">Message</button><button class="btn line" style="flex:1">Call</button></div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:12px" data-go="r-trip">Driver's here — get in</button>
+      </div>
+
+      <div class="app-screen" data-screen="r-trip">
+        <div class="map"><span class="pin a"></span><span class="route"></span><span class="pin b"></span></div>
+        <div class="sheet" style="margin-top:14px"><div class="row"><b>On the way to Victoria Island</b><span class="pill on pulse">In trip</span></div><p class="sm muted" style="margin-top:6px">9.2 km · arriving ~22 min · flat fare locked</p></div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:12px" data-go="r-complete">Arrive at destination</button>
+      </div>
+
+      <div class="app-screen" data-screen="r-complete">
+        <div class="center-stack" style="flex:0;padding-top:24px"><h2>You've arrived</h2><p>Victoria Island · flat fare, no surprises</p></div>
+        <div class="sheet">
+          <div class="row"><span class="muted">Distance this trip</span><b class="num">9.2 km</b></div>
+          <div class="row" style="margin-top:6px"><span class="muted">Credits left this cycle</span><b class="num" id="r-after">517.8 km</b></div>
+          <div class="row" style="margin-top:6px"><span class="muted">Cash charged</span><b class="num">₦0.00</b></div>
+        </div>
+        <div class="sheet"><p class="sm" style="text-align:center;margin-bottom:8px">Rate Emeka</p><div class="stars" style="text-align:center" role="img" aria-label="5 stars">★★★★★</div></div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:12px" data-go="r-home">Done</button>
+      </div>
+
+      <!-- DRIVER -->
+      <div class="app-screen" data-screen="d-signup">
+        <h2 style="margin:6px 0 2px">Your vehicle</h2>
+        <p class="muted sm">Every car is inspected. Must be 2018 or newer.</p>
+        <div class="field app"><label for="d-car">Vehicle</label><input id="d-car" value="Toyota Corolla"></div>
+        <div class="field app"><label for="d-year">Model year</label><select id="d-year"><option>2020</option><option>2019</option><option>2018</option><option disabled>2017 — not eligible</option></select></div>
+        <div class="field app"><label for="d-plate">Plate number</label><input id="d-plate" value="EKY-482-LA"></div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:16px" data-go="d-dash">Submit for inspection</button>
+      </div>
+
+      <div class="app-screen" data-screen="d-dash">
+        <div class="demohint">Demo: inspection approved — you're live.</div>
+        <div class="row"><div><p class="muted sm">Welcome back</p><h2 style="font-size:23px">Emeka</h2></div><span class="pill on">Gold driver</span></div>
+        <div class="sheet" style="margin-top:14px"><p class="muted sm">Today's earnings</p><p class="bignum" id="d-today">₦18,400</p><div class="row sm muted" style="margin-top:4px"><span>8 trips · 153 km</span><span>0% commission</span></div></div>
+        <div class="sheet"><div class="row"><span class="sm">Weekly guaranteed floor</span><b class="num sm">₦70,000</b></div><div class="tier-track" aria-hidden="true"><span class="tier-seg fill"></span><span class="tier-seg fill"></span><span class="tier-seg fill"></span><span class="tier-seg"></span></div><p class="xs muted" style="margin-top:8px">₦58,200 of ₦70,000 — the floor tops you up if you fall short.</p></div>
+        <div class="sheet"><div class="row"><span class="sm">Tier · Gold</span><span class="pill">+₦35k/mo</span></div><p class="xs muted" style="margin-top:8px">4.9★ · 98% punctual · 42 trips from Platinum (+₦60k &amp; vehicle financing).</p></div>
+        <div class="spacer"></div>
+        <div class="sheet" style="margin-top:14px"><div class="row"><div><b id="d-status">You're offline</b><p class="xs muted">Go online for priority matches</p></div><div class="toggle" id="d-toggle" role="switch" aria-checked="false" tabindex="0"></div></div></div>
+      </div>
+
+      <div class="app-screen" data-screen="d-online">
+        <div class="center-stack"><div class="spin"></div><h2 style="margin-top:20px">You're online</h2><p>Waiting for a priority match near Lekki…</p></div>
+        <button class="btn solid block" data-go="d-request">A ride request comes in</button>
+      </div>
+
+      <div class="app-screen" data-screen="d-request">
+        <div class="sheet" style="border-color:var(--ink)">
+          <div class="row"><span class="pill on pulse">New request · 12s</span><b class="num">9.2 km</b></div>
+          <div class="trip-line" style="margin-top:14px"><div class="track"><span class="dot fill"></span><span class="line"></span><span class="dot"></span></div><div style="flex:1"><div><b>Lekki Phase 1</b><p class="xs muted">pickup · 4 min away</p></div><div style="margin-top:10px"><b>Victoria Island</b><p class="xs muted">drop-off</p></div></div></div>
+          <div class="row fill" style="margin-top:14px;background:var(--faint);margin-left:-16px;margin-right:-16px;padding:12px 16px"><span class="sm">You earn this trip</span><b class="num good">₦1,104</b></div>
+          <p class="xs muted" style="margin-top:10px">Rider: Ada O. · 4.8★ · Commuter plan</p>
+        </div>
+        <div class="spacer"></div>
+        <div class="row" style="gap:10px;margin-top:12px"><button class="btn line" style="flex:1" data-go="d-online">Decline</button><button class="btn solid" style="flex:2" data-go="d-enroute">Accept · ₦1,104</button></div>
+      </div>
+
+      <div class="app-screen" data-screen="d-enroute">
+        <div class="map"><span class="pin a"></span><span class="route"></span><span class="pin b"></span></div>
+        <div class="sheet" style="margin-top:14px"><div class="car-badge"><div class="avatar">AO</div><div style="flex:1"><b>Ada O.</b><p class="sm muted">Lekki Phase 1 · 4 min</p></div><b class="num">4.8★</b></div></div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:12px" data-go="d-trip">Arrived · start trip</button>
+      </div>
+
+      <div class="app-screen" data-screen="d-trip">
+        <div class="map"><span class="pin a"></span><span class="route"></span><span class="pin b"></span></div>
+        <div class="sheet" style="margin-top:14px"><div class="row"><b>Heading to Victoria Island</b><span class="pill on pulse">In trip</span></div><p class="sm muted" style="margin-top:6px">9.2 km · this trip pays ₦1,104</p></div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:12px" data-go="d-done">Complete trip</button>
+      </div>
+
+      <div class="app-screen" data-screen="d-done">
+        <div class="center-stack" style="flex:0;padding-top:24px"><h2>Trip complete</h2><p>₦1,104 added — you keep all of it</p></div>
+        <div class="sheet"><div class="row"><span class="muted">This trip</span><b class="num good">+₦1,104</b></div><div class="row" style="margin-top:6px"><span class="muted">Today's total</span><b class="num">₦19,504</b></div><div class="row" style="margin-top:6px"><span class="muted">Commission taken</span><b class="num">₦0</b></div></div>
+        <div class="sheet"><div class="row"><span class="sm">Progress to Platinum</span><span class="pill">41 trips to go</span></div></div>
+        <div class="spacer"></div>
+        <button class="btn solid block" style="margin-top:12px" data-go="d-online">Back online</button>
+      </div>
+
+    </div>
+  </div></div></div>
+  <div class="guidebar" id="guide"><span class="g-text">Follow this bar — it tells you what to tap next.</span><button class="g-reset" id="reset">Start over</button></div>
+</div>
+
+<!-- =================== BUSINESS MODAL =================== -->
+<div class="overlay" id="biz" hidden>
+  <div class="obox">
+    <button class="close" id="bizclose" aria-label="Close">✕</button>
+    <h3>The business case</h3>
+    <p>The pricing research behind OneUp (Lagos, 2025–26 estimates). Riders pay less, drivers earn more, and OneUp still turns a margin — here's how.</p>
+    <h4>What a kilometre costs riders</h4>
+    <div class="bars">
+      <div class="bar-row"><div class="bar-label">Uber peak<small>with surge</small></div><div class="bar-track"><div class="bar-fill b-a" style="width:100%">₦230/km</div></div></div>
+      <div class="bar-row"><div class="bar-label">Bolt sticker<small>no surge</small></div><div class="bar-track"><div class="bar-fill b-b" style="width:70%">₦160/km</div></div></div>
+      <div class="bar-row"><div class="bar-label">OneUp<small>Commuter, flat</small></div><div class="bar-track"><div class="bar-fill b-c" style="width:56%">₦129/km</div></div></div>
+    </div>
+    <h4>Driver take-home / month (Gold, 25 days)</h4>
+    <div class="bars">
+      <div class="bar-row"><div class="bar-label">On Bolt today<small>after commission + fuel</small></div><div class="bar-track"><div class="bar-fill b-b" style="width:65%">₦300,000</div></div></div>
+      <div class="bar-row"><div class="bar-label">On OneUp<small>+ floor + bonus</small></div><div class="bar-track"><div class="bar-fill b-good" style="width:91%">₦420,000</div></div></div>
+    </div>
+    <p>Same net per kilometre as today, but priority matching means ~25–30% more <i>paid</i> kilometres per shift and less fuel wasted circling, plus a guaranteed floor and tier bonuses up to ₦60k/mo.</p>
+    <h4>Where OneUp's margin comes from</h4>
+    <p>Driver cost is ₦120 × kilometres actually ridden, so the unused slice of each plan is the margin engine — light riders are the most profitable.</p>
+    <div class="tblwrap">
+    <table class="tbl">
+      <thead><tr><th>Plan</th><th>Revenue</th><th>Avg use</th><th>Driver cost</th><th>Gross</th><th>Margin</th></tr></thead>
+      <tbody>
+        <tr><td>Lite</td><td class="num">₦40,000</td><td class="num">65%</td><td class="num">₦21,840</td><td class="num">₦18,160</td><td class="num good">45%</td></tr>
+        <tr><td>Commuter</td><td class="num">₦80,000</td><td class="num">85%</td><td class="num">₦63,240</td><td class="num">₦16,760</td><td class="num good">21%</td></tr>
+        <tr><td>Pro</td><td class="num">₦150,000</td><td class="num">88%</td><td class="num">₦137,280</td><td class="num">₦12,720</td><td class="num good">8%</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="margin-top:12px">Blended gross margin at a 30/50/20 plan mix ≈ <b style="color:var(--ink)">26%</b>. After insurance, inspections, payments, support, driver bonuses and acquisition (~15–18%), target net margin ≈ <b style="color:var(--ink)">8–11%</b>. The thin per-km margin on Pro means plan-mix and real utilisation are the two numbers to validate in a pilot.</p>
+    <p class="src">Sources: <a href="https://wheelzar.com/is-bolt-cheaper-than-uber-in-lagos/">Wheelzar</a>, <a href="https://transportlog.com.ng/bolt-vs-uber-nigeria-2026-prices-safety-which-is-better/">TransportLog</a>, <a href="https://thecable.ng/were-struggling-to-survive-bolt-uber-drivers-begin-strike-over-low-fares-25-commission-rate">TheCable</a>, <a href="https://techcabal.com/2025/08/05/bolt-indrive-drivers-earning/">TechCabal</a>, <a href="https://businessday.ng/transport/article/lagos-commuters-cut-back-on-ride-hailing-as-fares-rise/">BusinessDay</a>.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var pages={landing:document.getElementById('page-landing'),auth:document.getElementById('page-auth'),app:document.getElementById('page-app')};
+  var nav=document.getElementById('nav');
+  function showPage(name){
+    Object.keys(pages).forEach(function(k){var on=k===name;pages[k].classList.toggle('on',on);pages[k].hidden=!on;});
+    nav.hidden=(name!=='landing');
+    window.scrollTo({top:0,behavior:'auto'});
+  }
+
+  var role='rider', mode='create', pendingPlan=null;
+  var roleBtns=document.querySelectorAll('[data-role-pick]');
+  var modeBtns=document.querySelectorAll('[data-mode]');
+  var submit=document.getElementById('authsubmit');
+  var fName=document.getElementById('f-name');
+  var title=document.getElementById('auth-title');
+  function syncAuth(){
+    roleBtns.forEach(function(b){b.setAttribute('aria-pressed',b.dataset.rolePick===role);});
+    modeBtns.forEach(function(b){b.setAttribute('aria-selected',b.dataset.mode===mode);});
+    fName.style.display=(mode==='create')?'block':'none';
+    var noun=role==='rider'?'rider':'driver';
+    title.textContent=(mode==='create'?'Create your account':'Welcome back');
+    submit.textContent=(mode==='create'?'Create '+noun+' account':'Sign in as '+noun);
+  }
+  function openAuth(m,r,plan){ mode=m||'create'; if(r)role=r; if(plan)pendingPlan=plan; syncAuth(); showPage('auth'); }
+  roleBtns.forEach(function(b){b.addEventListener('click',function(){role=b.dataset.rolePick;syncAuth();});});
+  modeBtns.forEach(function(b){b.addEventListener('click',function(){mode=b.dataset.mode;syncAuth();});});
+  document.getElementById('authform').addEventListener('submit',function(e){e.preventDefault();enterApp();});
+
+  function enterApp(){
+    showPage('app');
+    document.getElementById('app-role').textContent=(role==='rider'?'Rider':'Driver');
+    document.getElementById('sb-role').textContent=(role==='rider'?'OneUp · Rider':'OneUp · Driver');
+    if(role==='rider'){
+      if(mode==='create'){ if(pendingPlan){applyPlan(pendingPlan,planKm(pendingPlan)); show('r-home');} else {show('r-plans');} }
+      else { applyPlan('Commuter',620); show('r-home'); }
+    } else { show(mode==='create'?'d-signup':'d-dash'); }
+  }
+
+  var GUIDE={
+    'r-plans':"Pick a plan — tap one of the <b>Choose</b> buttons.",
+    'r-home':"This is your home screen. Tap <b>Book a ride</b>.",
+    'r-book':"Pickup and destination are set. Tap <b>Confirm pickup</b>.",
+    'r-matching':"Finding your driver… one second.",
+    'r-matched':"Your driver is 4 minutes away. Tap <b>Driver's here — get in</b>.",
+    'r-trip':"You're on the ride. Tap <b>Arrive at destination</b>.",
+    'r-complete':"All done. Tap <b>Done</b> to go back home.",
+    'd-signup':"Car details are filled in (must be 2018+). Tap <b>Submit for inspection</b>.",
+    'd-dash':"This is your dashboard. Slide the <b>switch</b> (bottom) to go online.",
+    'd-online':"You're online. Tap <b>A ride request comes in</b>.",
+    'd-request':"A rider wants you. Tap the <b>Accept</b> button.",
+    'd-enroute':"Drive to the rider. Tap <b>Arrived · start trip</b>.",
+    'd-trip':"You're driving the rider. Tap <b>Complete trip</b>.",
+    'd-done':"You got paid — all of it. Tap <b>Back online</b> for the next ride."
+  };
+  var gtext=document.querySelector('#guide .g-text');
+  var timer=null;
+  function delay(fn,ms){ if(timer)clearTimeout(timer); var r=matchMedia('(prefers-reduced-motion:reduce)').matches; timer=setTimeout(fn,r?500:ms); }
+  function show(name){
+    var scr=document.querySelector('[data-screen="'+name+'"]'); if(!scr) return;
+    document.querySelectorAll('.app-screen').forEach(function(s){s.classList.remove('on')});
+    scr.classList.add('on');
+    var v=document.querySelector('#page-app .view'); if(v) v.scrollTop=0;
+    if(GUIDE[name]) gtext.innerHTML=GUIDE[name];
+    if(name==='r-matching') delay(function(){show('r-matched')},1800);
+  }
+
+  function planKm(n){ return n==='Lite'?280:(n==='Pro'?1300:620); }
+  function applyPlan(name,km){
+    var used=name==='Commuter'?93:(name==='Lite'?60:160);
+    var left=km-used;
+    document.getElementById('r-planbadge').textContent=name;
+    document.getElementById('r-kmtotal-l').textContent='of '+km.toLocaleString()+' km';
+    document.getElementById('r-kmleft').textContent=left.toLocaleString();
+    document.getElementById('r-ring').style.setProperty('--p',Math.round(left/km*100));
+    document.getElementById('r-after').textContent=(left-9.2).toFixed(1)+' km';
+  }
+  applyPlan('Commuter',620);
+
+  var tog=document.getElementById('d-toggle');
+  function goOnline(){ tog.classList.add('on'); tog.setAttribute('aria-checked','true'); document.getElementById('d-status').textContent="You're online"; show('d-online'); }
+  tog.addEventListener('click',goOnline);
+  tog.addEventListener('keydown',function(e){ if(e.key===' '||e.key==='Enter'){e.preventDefault();goOnline();} });
+
+  document.getElementById('reset').addEventListener('click',function(){
+    if(role==='rider'){ applyPlan('Commuter',620); show('r-home'); }
+    else { tog.classList.remove('on'); tog.setAttribute('aria-checked','false'); document.getElementById('d-status').textContent="You're offline"; show('d-dash'); }
+  });
+
+  document.addEventListener('click',function(e){
+    var home=e.target.closest('[data-home]'); if(home){ showPage('landing'); return; }
+    var sc=e.target.closest('[data-scroll]'); if(sc){ var t=document.getElementById(sc.dataset.scroll); if(pages.landing.classList.contains('on')&&t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});} else {showPage('landing');} return; }
+    var au=e.target.closest('[data-auth]'); if(au){ openAuth(au.dataset.auth,au.dataset.role,au.dataset.plan); return; }
+    var go=e.target.closest('[data-go]'); if(go){ show(go.dataset.go); return; }
+    var pick=e.target.closest('[data-pick]'); if(pick){ var sh=pick.closest('[data-plan]'); applyPlan(sh.dataset.plan,parseInt(sh.dataset.km,10)); show('r-home'); return; }
+    var biz=e.target.closest('[data-biz]'); if(biz){ document.getElementById('biz').hidden=false; return; }
+  });
+  var bizEl=document.getElementById('biz');
+  document.getElementById('bizclose').addEventListener('click',function(){bizEl.hidden=true;});
+  bizEl.addEventListener('click',function(e){ if(e.target===bizEl) bizEl.hidden=true; });
+
+  syncAuth();
+})();
+</script>
+
+</body>
+</html>
