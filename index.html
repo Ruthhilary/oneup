@@ -116,7 +116,7 @@
 
   <footer class="footer"><div class="wrap footer-in">
     <div class="brand" data-home><span class="mk"><svg viewBox="0 0 24 24"><path d="M12 3L4 11h4v8h8v-8h4L12 3z" fill="#fff"/></svg></span><span class="wordmark" style="font-size:17px">One<span class="u">Up</span></span></div>
-    <div class="fl"><a data-biz>Business case &amp; pricing research</a><a data-auth="signin">Sign in</a></div>
+    <div class="fl"><a data-biz>Business case &amp; pricing research</a><a data-auth="signin">Sign in</a><a data-admin>Admin</a></div>
     <span>© 2026 OneUp · Lagos · Demo</span>
   </div></footer>
 </div>
@@ -330,6 +330,31 @@
     </div>
   </div></div></div>
   <div class="guidebar" id="guide"><span class="g-text">Follow this bar — it tells you what to do next.</span><button class="g-reset" id="reset">Start over</button></div>
+</div>
+
+<!-- ============ ADMIN ============ -->
+<div class="page" id="page-admin" hidden>
+  <div class="adminbar"><div class="adminbar-in">
+    <div class="brand" data-home><span class="mk"><svg viewBox="0 0 24 24"><path d="M12 3L4 11h4v8h8v-8h4L12 3z" fill="#fff"/></svg></span><span class="wordmark" style="font-size:18px">One<span class="u">Up</span></span></div>
+    <span class="role">Admin</span>
+    <span class="signin-link" data-home style="margin-left:auto">← Back to site</span>
+    <button class="logout" id="admin-signout" data-admin-signout hidden>Sign out</button>
+  </div></div>
+  <div class="admin-wrap">
+    <div id="admin-login">
+      <h3>Admin sign-in</h3>
+      <p class="sm muted" style="margin:6px 0 20px;text-align:center">Review and approve driver applications.</p>
+      <form id="adminform">
+        <div class="field"><label for="admin-key">Admin key</label><input id="admin-key" value="oneup-admin"></div>
+        <button class="btn solid block" type="submit">Sign in</button>
+      </form>
+      <p class="auth-note">Demo key: <b>oneup-admin</b> — set a real one with the <code>ADMIN_KEY</code> environment variable.</p>
+    </div>
+    <div id="admin-dash" hidden>
+      <div class="admin-head"><div><h2>Driver applications</h2><p class="sm muted" id="admin-counts">—</p></div><button class="btn line sm" data-admin>Refresh</button></div>
+      <div id="admin-list"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ============ BUSINESS MODAL ============ -->

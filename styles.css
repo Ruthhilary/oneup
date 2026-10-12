@@ -296,6 +296,29 @@ a{color:inherit;text-decoration:none}
 .tblwrap{overflow-x:auto}
 .src{font-size:11.5px;color:var(--ink-2);margin-top:16px}.src a{text-decoration:underline}
 
+/* admin */
+.adminbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--paper);border-bottom:1px solid var(--line)}
+.adminbar-in{max-width:900px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:10px}
+@media(max-width:600px){.adminbar-in{padding:12px 20px}}
+.adminbar .role{font-size:11px;font-weight:700;border:1px solid var(--line);padding:3px 9px;border-radius:20px;color:var(--ink-2)}
+.adminbar .logout{background:0;border:0;color:var(--ink-2);font-weight:600;font-size:14px;cursor:pointer;font-family:var(--body);margin-left:14px}
+.adminbar .logout:hover{color:var(--ink)}
+.admin-wrap{max-width:900px;margin:0 auto;padding:28px 24px 60px}
+@media(max-width:600px){.admin-wrap{padding:24px 20px 50px}}
+#admin-login{max-width:380px;margin:48px auto 0}
+#admin-login h3{font-size:24px;font-weight:700;text-align:center;letter-spacing:-.02em}
+.admin-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:22px}
+.admin-head h2{font-size:clamp(24px,4vw,30px);font-weight:700;letter-spacing:-.025em}
+.acard{border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.acard b{font-size:16px}
+.afacts{display:grid;grid-template-columns:repeat(2,1fr);gap:9px 24px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+@media(max-width:520px){.afacts{grid-template-columns:1fr}}
+.afact{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;align-items:center}
+.afact .ak{color:var(--ink-2)}
+.afact .av{font-weight:600;text-align:right;display:flex;gap:6px;align-items:center;justify-content:flex-end}
+.areason{width:100%;font-family:var(--body);font-size:14px;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-top:14px}
+.areason:focus{outline:0;border-color:var(--ink)}
+
 /* toast */
 #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,24px);background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:10px;font-size:14px;font-weight:500;max-width:90vw;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:90;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 #toast.on{opacity:1;transform:translate(-50%,0)}

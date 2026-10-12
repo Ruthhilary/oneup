@@ -40,7 +40,17 @@ CREATE TABLE IF NOT EXISTS trips (
   user_id INTEGER, role TEXT, from_loc TEXT, to_loc TEXT,
   km REAL, amount INTEGER, created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS admin_sessions ( token TEXT PRIMARY KEY, created_at TEXT );
 `);
+
+// migrate: add columns if an older oneup.db is missing them
+function hasCol(t, c) { return DB.prepare(`PRAGMA table_info(${t})`).all().some(r => r.name === c); }
+function ensureCol(t, c, def) { if (!hasCol(t, c)) DB.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`); }
+ensureCol('users', 'status', "TEXT DEFAULT 'incomplete'");  // incomplete | pending | approved | rejected
+ensureCol('users', 'reject_reason', 'TEXT');
+ensureCol('users', 'submitted_at', 'TEXT');
+
+const ADMIN_KEY = process.env.ADMIN_KEY || 'oneup-admin';
 
 const PLANS = {
   Lite:     { km: 280,  rate: 143, price: 40000,  used: 60 },
@@ -78,8 +88,25 @@ function clientUser(u) {
     inspection: !!u.inspection,
     background: !!u.background,
     earningsToday: u.earnings_today,
-    tier: u.tier
+    tier: u.tier,
+    status: u.status || 'incomplete',
+    rejectReason: u.reject_reason || ''
   };
+}
+function adminDriver(u) {
+  return {
+    id: u.id, name: u.name, email: u.email, status: u.status || 'incomplete',
+    vehicle: { make: u.veh_make || '', year: u.veh_year || null },
+    eligible: !!(u.veh_year && u.veh_year >= 2018),
+    docsCount: JSON.parse(u.docs || '[]').length, docsTotal: DOC_COUNT,
+    inspection: !!u.inspection, background: !!u.background,
+    submittedAt: u.submitted_at || null, rejectReason: u.reject_reason || '',
+    qualified: !!u.qualified, earningsToday: u.earnings_today
+  };
+}
+function authAdmin(req) {
+  const t = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+  return t && DB.prepare('SELECT token FROM admin_sessions WHERE token=?').get(t);
 }
 function getUser(id) { return DB.prepare('SELECT * FROM users WHERE id=?').get(id); }
 function authUser(req) {
@@ -138,6 +165,7 @@ async function api(req, res, url) {
         const info = DB.prepare(`INSERT INTO users(role,name,email,pass,created_at,qualified,veh_make,veh_year,docs,inspection,background,earnings_today,tier)
           VALUES(?,?,?,?,?,1,?,?,?,1,1,?,?)`).run('driver', 'Emeka Obi', email, hashPw(password), now(),
           'Toyota Corolla', 2020, JSON.stringify(['Driver\'s licence','Vehicle registration','Insurance certificate','Roadworthiness certificate','Proof the car is yours']), 18400, 'Gold');
+        DB.prepare("UPDATE users SET status='approved' WHERE id=?").run(info.lastInsertRowid);
         u = getUser(info.lastInsertRowid);
       } else {
         const info = DB.prepare('INSERT INTO users(role,name,email,pass,created_at,plan,km_used) VALUES(?,?,?,?,?,?,?)')
@@ -146,6 +174,35 @@ async function api(req, res, url) {
       }
     }
     return send(res, 200, { token: makeSession(u.id), user: clientUser(u) });
+  }
+
+  // ---- admin ----
+  if (p === '/admin/login' && req.method === 'POST') {
+    if (String(body.key) !== ADMIN_KEY) return send(res, 401, { error: 'Wrong admin key.' });
+    const t = newToken();
+    DB.prepare('INSERT INTO admin_sessions(token,created_at) VALUES(?,?)').run(t, now());
+    return send(res, 200, { token: t });
+  }
+  if (p.indexOf('/admin') === 0) {
+    if (!authAdmin(req)) return send(res, 401, { error: 'Admin sign-in required.' });
+    if (p === '/admin/drivers' && req.method === 'GET') {
+      const rows = DB.prepare(`SELECT * FROM users WHERE role='driver'
+        ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 WHEN 'approved' THEN 2 ELSE 3 END,
+        submitted_at DESC, id DESC`).all();
+      return send(res, 200, { drivers: rows.map(adminDriver) });
+    }
+    if (p === '/admin/decision' && req.method === 'POST') {
+      const u = DB.prepare("SELECT * FROM users WHERE id=? AND role='driver'").get(body.id);
+      if (!u) return send(res, 404, { error: 'Driver not found.' });
+      if (body.decision === 'approve') {
+        DB.prepare("UPDATE users SET status='approved', qualified=1, reject_reason=NULL WHERE id=?").run(u.id);
+      } else if (body.decision === 'reject') {
+        DB.prepare("UPDATE users SET status='rejected', qualified=0, reject_reason=? WHERE id=?")
+          .run(String(body.reason || 'Application did not meet requirements.'), u.id);
+      } else return send(res, 400, { error: 'Unknown decision.' });
+      return send(res, 200, { driver: adminDriver(getUser(u.id)) });
+    }
+    return send(res, 404, { error: 'Unknown admin endpoint.' });
   }
 
   // everything below requires auth
@@ -183,7 +240,8 @@ async function api(req, res, url) {
       const u = getUser(me.id);
       const ok = u.veh_year >= 2018 && JSON.parse(u.docs || '[]').length >= DOC_COUNT && u.inspection && u.background;
       if (!ok) return send(res, 400, { error: 'Finish all four checks first.' });
-      DB.prepare('UPDATE users SET qualified=1 WHERE id=?').run(me.id);
+      // goes to an admin for review — not auto-approved
+      DB.prepare("UPDATE users SET status='pending', submitted_at=?, reject_reason=NULL WHERE id=?").run(now(), me.id);
     } else {
       return send(res, 400, { error: 'Unknown action.' });
     }

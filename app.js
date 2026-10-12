@@ -20,12 +20,15 @@
   function delay(fn, ms) { if (timer) clearTimeout(timer); timer = setTimeout(fn, reduce() ? 500 : ms); }
 
   // ------------------------------------------------------------ API client
+  var ADMIN_KEY = 'oneup_admin';
   function token() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
   function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
-  function api(pathname, method, body) {
+  function adminToken() { try { return localStorage.getItem(ADMIN_KEY) || ''; } catch (e) { return ''; } }
+  function setAdminToken(t) { try { t ? localStorage.setItem(ADMIN_KEY, t) : localStorage.removeItem(ADMIN_KEY); } catch (e) {} }
+  function api(pathname, method, body, tok) {
     return fetch('/api' + pathname, {
       method: method || 'GET',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (tok || token()) },
       body: body ? JSON.stringify(body) : undefined
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
@@ -43,9 +46,10 @@
   }
 
   // --------------------------------------------------------------- router
-  var pages = { landing: $('#page-landing'), auth: $('#page-auth'), app: $('#page-app') };
+  var pages = { landing: $('#page-landing'), auth: $('#page-auth'), app: $('#page-app'), admin: $('#page-admin') };
   var nav = $('#nav');
   function showPage(name) {
+    if (name !== 'app') stopPoll();
     Object.keys(pages).forEach(function (k) { var on = k === name; pages[k].classList.toggle('on', on); pages[k].hidden = !on; });
     nav.hidden = (name !== 'landing');
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -119,8 +123,22 @@
   };
   var gtext = $('#guide .g-text');
 
+  function stopPoll() { if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; } }
+  function startPoll() {
+    if (state.pollTimer) return;
+    state.pollTimer = setInterval(function () {
+      api('/me').then(function (r) {
+        var was = state.user ? state.user.status : null;
+        state.user = r.user;
+        if (r.user.qualified) { stopPoll(); updateTabLocks(); toast('You’re approved — jobs unlocked.'); show('dv-home'); }
+        else if (r.user.status !== was) renderQual();
+      }).catch(function () {});
+    }, 4000);
+  }
+
   function show(view) {
     var scr = $('[data-screen="' + view + '"]'); if (!scr) return;
+    if (view !== 'dv-qualify') stopPoll();
     $$('.app-screen').forEach(function (s) { s.classList.remove('on'); });
     scr.classList.add('on');
     var v = $('#page-app .view'); if (v) v.scrollTop = 0;
@@ -238,7 +256,22 @@
       if (isActive) h += '<div class="qbody">' + stepBody(s.id) + '</div>';
       return h + '</div>';
     }).join('');
-    $('#qual-final').hidden = !(done === QSTEPS.length && !state.user.qualified);
+
+    var fin = $('#qual-final'), u = state.user;
+    if (u.qualified) { fin.hidden = true; stopPoll(); }
+    else if (u.status === 'pending') {
+      fin.hidden = false;
+      fin.innerHTML = '<div class="card fill"><div class="row"><b>Application submitted</b><span class="pill warn">Under review</span></div>' +
+        '<p class="sm muted" style="margin-top:6px">A OneUp admin is reviewing your car, documents, inspection and background check. You’ll be cleared to drive once approved — usually within a day.</p>' +
+        '<button class="btn line block" style="margin-top:12px" data-check>Check status</button></div>';
+      startPoll();
+    }
+    else if (done === QSTEPS.length) {
+      fin.hidden = false;
+      var rej = u.status === 'rejected' ? '<div class="banner warn" style="margin-bottom:10px"><span><b>Not approved.</b> ' + (u.rejectReason || 'Please review your details and resubmit.') + '</span></div>' : '';
+      fin.innerHTML = rej + '<div class="card fill"><b>All checks complete</b><p class="sm muted" style="margin-top:4px">Submit your application — a OneUp admin will review and approve it.</p><button class="btn solid block" style="margin-top:12px" data-q="submit">Submit for review</button></div>';
+    }
+    else { fin.hidden = true; }
   }
   function statusPill(done, active) { return done ? '<span class="pill good">Verified</span>' : (active ? '<span class="pill warn">In progress</span>' : '<span class="pill">Locked</span>'); }
   function doneSummary(id) {
@@ -341,11 +374,13 @@
       else if (act === 'inspection') { qualAction('inspection').then(renderQual).catch(function (er) { toast(er.message); }); }
       else if (act === 'background') { state.bgRunning = true; renderQual(); delay(function () { qualAction('background').then(function () { state.bgRunning = false; renderQual(); }).catch(function (er) { state.bgRunning = false; toast(er.message); renderQual(); }); }, 1500); }
       else if (act === 'submit') {
-        $('#qual-final').innerHTML = '<div class="center-stack" style="padding:18px 0"><div class="spin"></div><p>Reviewing your application…</p></div>';
-        delay(function () { qualAction('submit').then(function (u) { if (u.qualified) { toast('You’re qualified — jobs unlocked.'); show('dv-home'); } }).catch(function (er) { toast(er.message); renderQual(); }); }, 1600);
+        $('#qual-final').innerHTML = '<div class="center-stack" style="padding:18px 0"><div class="spin"></div><p>Submitting your application…</p></div>';
+        delay(function () { qualAction('submit').then(function () { toast('Submitted — an admin will review it.'); renderQual(); }).catch(function (er) { toast(er.message); renderQual(); }); }, 1200);
       }
       return;
     }
+    var chk = e.target.closest('[data-check]');
+    if (chk) { api('/me').then(function (r) { state.user = r.user; updateTabLocks(); if (r.user.qualified) { toast('You’re approved — jobs unlocked.'); show('dv-home'); } else { toast('Still under review.'); renderQual(); } }).catch(function (er) { toast(er.message); }); return; }
     var doc = e.target.closest('[data-doc]'); if (doc) { qualAction('doc', { name: doc.dataset.doc }).then(renderQual).catch(function (er) { toast(er.message); }); return; }
 
     // ride / job flow
@@ -357,6 +392,70 @@
   });
   $('#bizclose').addEventListener('click', function () { $('#biz').hidden = true; });
   $('#biz').addEventListener('click', function (e) { if (e.target === $('#biz')) $('#biz').hidden = true; });
+
+  // ------------------------------------------------------------------ ADMIN
+  function openAdmin() {
+    showPage('admin');
+    var signed = !!adminToken();
+    $('#admin-login').hidden = signed;
+    $('#admin-dash').hidden = !signed;
+    $('#admin-signout').hidden = !signed;
+    if (signed) loadAdmin();
+  }
+  function loadAdmin() {
+    api('/admin/drivers', 'GET', null, adminToken())
+      .then(function (r) { renderAdmin(r.drivers); })
+      .catch(function (e) { if (e.status === 401) { setAdminToken(''); openAdmin(); } toast(e.message); });
+  }
+  function adminWhen(iso) { if (!iso) return '—'; try { var d = new Date(iso); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); } catch (e) { return '—'; } }
+  function renderAdmin(drivers) {
+    var pending = drivers.filter(function (d) { return d.status === 'pending'; }).length;
+    $('#admin-counts').textContent = drivers.length + ' driver' + (drivers.length === 1 ? '' : 's') + ' · ' + pending + ' pending review';
+    var host = $('#admin-list');
+    if (!drivers.length) { host.innerHTML = '<p class="sm muted" style="padding:28px 0;text-align:center">No driver applications yet. Create a driver account in the app and submit it for review.</p>'; return; }
+    host.innerHTML = drivers.map(function (d) {
+      var sp = d.status === 'approved' ? '<span class="pill good">Approved</span>'
+        : d.status === 'pending' ? '<span class="pill warn">Pending</span>'
+          : d.status === 'rejected' ? '<span class="pill bad">Rejected</span>'
+            : '<span class="pill">Not submitted</span>';
+      var veh = d.vehicle.year ? (d.vehicle.make + ' · ' + d.vehicle.year) : '—';
+      var vpill = d.vehicle.year ? (d.eligible ? '<span class="pill good">2018+</span>' : '<span class="pill bad">Too old</span>') : '';
+      var facts = '<div class="afacts">' +
+        fact('Vehicle', veh + ' ' + vpill) +
+        fact('Documents', d.docsCount + '/' + d.docsTotal) +
+        fact('Inspection', d.inspection ? 'Passed' : 'Pending') +
+        fact('Background', d.background ? 'Cleared' : 'Pending') +
+        fact('Submitted', adminWhen(d.submittedAt)) +
+        '</div>';
+      var rej = d.status === 'rejected' && d.rejectReason ? '<p class="sm bad" style="margin-top:8px">Reason given: ' + d.rejectReason + '</p>' : '';
+      var actions;
+      if (d.status === 'approved') {
+        actions = '<div class="row" style="margin-top:14px"><span class="sm muted">Cleared to drive.</span><button class="btn line sm" data-reject="' + d.id + '">Revoke</button></div>';
+      } else {
+        actions = '<input class="areason" placeholder="Reason (used if you reject)"><div class="row" style="gap:10px;margin-top:10px"><button class="btn line" style="flex:1" data-reject="' + d.id + '">Reject</button><button class="btn solid" style="flex:1" data-approve="' + d.id + '">Approve</button></div>';
+      }
+      return '<div class="acard"><div class="row"><div><b>' + (d.name || 'Driver') + '</b><p class="sm muted">' + d.email + '</p></div>' + sp + '</div>' + facts + rej + actions + '</div>';
+    }).join('');
+  }
+  function fact(k, v) { return '<div class="afact"><span class="ak">' + k + '</span><span class="av">' + v + '</span></div>'; }
+  function adminDecision(id, decision, reason) {
+    api('/admin/decision', 'POST', { id: Number(id), decision: decision, reason: reason }, adminToken())
+      .then(function () { toast('Driver ' + (decision === 'approve' ? 'approved' : 'rejected') + '.'); loadAdmin(); })
+      .catch(function (e) { toast(e.message); });
+  }
+  $('#adminform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    api('/admin/login', 'POST', { key: $('#admin-key').value })
+      .then(function (r) { setAdminToken(r.token); openAdmin(); })
+      .catch(function (er) { toast(er.message); });
+  });
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-admin]')) { openAdmin(); return; }
+    if (e.target.closest('[data-admin-signout]')) { setAdminToken(''); openAdmin(); return; }
+    var ap = e.target.closest('[data-approve]'); if (ap) { adminDecision(ap.dataset.approve, 'approve'); return; }
+    var rj = e.target.closest('[data-reject]');
+    if (rj) { var card = rj.closest('.acard'); var reason = card ? (($('.areason', card) || {}).value || '') : ''; adminDecision(rj.dataset.reject, 'reject', reason); return; }
+  });
 
   // ----------------------------------------------------------------- boot
   syncAuth();

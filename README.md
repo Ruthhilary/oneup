@@ -26,8 +26,19 @@ To reset all data, stop the server and delete `oneup.db`.
 | **Sign in / Create account** | Choose Rider or Driver, then the platform |
 | **Rider dashboard** | Bottom-tab app: Home (live credits, bill, usage) · Book (book → match → ride → rate) · Trips · Plan (switch) · Account |
 | **Driver dashboard** | Bottom-tab app: Home (earnings, floor, tier) · Jobs (go online → accept → trip → payout) · Trips · Vehicle · Account |
-| **Driver qualification** | A 4-step gate every new driver must clear before any job: **vehicle 2018+** (older is rejected), **documents**, **inspection**, **background check**. Jobs stay locked until all four pass. |
+| **Driver qualification** | A 4-step gate every new driver must clear: **vehicle 2018+** (older is rejected), **documents**, **inspection**, **background check** — then the application is **submitted for admin review**. Jobs stay locked until an admin approves. |
+| **Admin** | Sign in with the admin key to see every driver application and **approve or reject** each one (with a reason). Approval is what unlocks a driver's jobs. |
 | **Business case** | Pricing research: rider savings, driver earnings, unit economics (footer link) |
+
+### Admin approval
+
+Submitting qualification no longer auto-approves a driver — it sends the application to a human admin.
+
+1. On the landing page, click **Admin** in the footer (or go to the site and open the admin link).
+2. Enter the admin key. Default is **`oneup-admin`** — change it with the `ADMIN_KEY` env var: `ADMIN_KEY=secret node server.js`.
+3. You'll see each driver's vehicle (with a 2018+ check), document count, inspection and background status, and when they applied. Click **Approve** or **Reject** (with a reason).
+
+The driver's app shows **"under review"** while pending (and polls for the decision), unlocks jobs on approval, or shows the rejection reason so they can fix and resubmit. The server enforces this: a driver stays unqualified — and `POST /api/trips` returns 403 — until an admin approves.
 
 ### Driver qualification gate
 
@@ -58,7 +69,7 @@ Vanilla HTML/CSS/JS front end + a zero‑dependency Node backend. No build step,
 index.html   markup: landing, auth, phone app shell + all dashboard views
 styles.css   all styling (clean, minimal, theme-aware light/dark)
 app.js       front end: routing, auth, dashboards, flows — calls the API
-server.js    Node backend (http + node:sqlite + node:crypto): serves site + JSON API
+server.js    Node backend (http + node:sqlite + node:crypto): serves site + JSON API + admin
 oneup.db     SQLite database, created at runtime (gitignored)
 ```
 
@@ -72,9 +83,12 @@ All JSON. Auth via `Authorization: Bearer <token>` (token stored client‑side a
 | `POST /api/login` | Sign in `{role,email,password}` → `{token,user}` |
 | `GET /api/me` | Current user |
 | `POST /api/plan` | Rider: change plan `{plan}` |
-| `POST /api/qualification` | Driver: `{action:'vehicle'|'doc'|'inspection'|'background'|'submit', ...}` (2018+ enforced server‑side) |
+| `POST /api/qualification` | Driver: `{action:'vehicle'|'doc'|'inspection'|'background'|'submit', ...}` (2018+ enforced server‑side; `submit` → pending review) |
 | `GET /api/trips` | List the user's trips |
-| `POST /api/trips` | Record a trip `{from,to,km}` — updates rider credits or driver earnings |
+| `POST /api/trips` | Record a trip `{from,to,km}` — updates rider credits or driver earnings (driver must be approved) |
+| `POST /api/admin/login` | `{key}` → admin token |
+| `GET /api/admin/drivers` | Admin: list all driver applications |
+| `POST /api/admin/decision` | Admin: `{id, decision:'approve'|'reject', reason?}` |
 
 Data persists across refreshes and restarts. Qualification can't be faked: the server rejects a pre‑2018 vehicle and won't mark a driver qualified until all four checks are stored.
 
