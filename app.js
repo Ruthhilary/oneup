@@ -492,11 +492,20 @@
   }
   function stepBody(id) {
     if (id === 'vehicle') {
-      var years = ''; for (var y = 2024; y >= 2014; y--) years += '<option value="' + y + '">' + y + (y < 2018 ? ' — not eligible' : '') + '</option>';
-      return '<div class="field app"><label>Make & model</label><input id="q-make" value="Toyota Corolla"></div>' +
+      var years = ''; for (var y = 2026; y >= 2014; y--) years += '<option value="' + y + '">' + y + (y < 2018 ? ' — not eligible' : '') + '</option>';
+      return '<div class="banner ok" style="margin-bottom:12px"><span><b>What qualifies:</b> a saloon or SUV from <b>2018 or newer</b> that you own and drive yourself. Efficient & hybrid cars get priority and earn the most.</span></div>' +
+        '<div class="card" style="margin-bottom:12px">' +
+          '<p class="xs" style="font-weight:700;color:#0E7A50;text-transform:uppercase;letter-spacing:.06em">✅ Best earnings — hybrid / efficient</p>' +
+          '<p class="sm muted" style="margin-top:4px">Toyota Corolla or Camry Hybrid · Honda Accord Hybrid · Lexus ES Hybrid · Hyundai Ioniq · Kia Niro — or efficient petrol: Corolla, Honda Civic, Hyundai Elantra, Kia Rio, Hyundai Accent.</p>' +
+          '<p class="xs" style="font-weight:700;color:#9A6A00;text-transform:uppercase;letter-spacing:.06em;margin-top:12px">⚠️ Lower earnings — thirsty engines</p>' +
+          '<p class="sm muted" style="margin-top:4px">Big V6 saloons and large SUVs (e.g. Highlander, Prado, older Sienna). Eligible if 2018+, but fuel eats most of the pay.</p>' +
+          '<p class="xs" style="font-weight:700;color:#C0392B;text-transform:uppercase;letter-spacing:.06em;margin-top:12px">❌ Not accepted</p>' +
+          '<p class="sm muted" style="margin-top:4px">Any car older than 2018, or one you don\'t own and drive yourself.</p>' +
+        '</div>' +
+        '<div class="field app"><label>Make & model</label><input id="q-make" placeholder="e.g. Toyota Corolla Hybrid"></div>' +
         '<div class="field app"><label>Model year</label><select id="q-year"><option value="">Select year…</option>' + years + '</select></div>' +
-        '<div class="field app"><label>Fuel type</label><select id="q-fuel"><option value="hybrid">Hybrid — recommended</option><option value="cng">CNG — where refuelling exists</option><option value="petrol">Petrol (thirsty)</option></select></div>' +
-        '<p class="xs muted" style="margin-bottom:10px">You drive your own car (<b>2018 or newer</b>). With Lagos fuel high, OneUp gives <b>efficient & hybrid</b> cars priority — they earn the most. Thirsty petrol cars earn least.</p>' +
+        '<div class="field app"><label>Fuel type</label><select id="q-fuel"><option value="hybrid">Hybrid — recommended</option><option value="cng">CNG — where refuelling exists</option><option value="petrol">Petrol</option></select></div>' +
+        '<p class="xs muted" style="margin-bottom:10px">You must <b>own and drive</b> this car yourself.</p>' +
         '<div id="q-vehicle-err"></div><button class="btn solid block" data-q="vehicle">Save vehicle</button>';
     }
     if (id === 'docs') {
@@ -659,7 +668,7 @@
   // ---------------------------------------------------- global click router
   document.addEventListener('click', function (e) {
     var out = e.target.closest('[data-logout]');
-    if (out) { setToken(''); state.user = null; state.trips = []; showPage('landing'); return; }
+    if (out) { api('/logout', 'POST').catch(function () {}); setToken(''); state.user = null; state.trips = []; showPage('landing'); return; }
     var home = e.target.closest('[data-home]'); if (home) { showPage('landing'); return; }
     var sc = e.target.closest('[data-scroll]');
     if (sc) { var t = $('#' + sc.dataset.scroll); if (pages.landing.classList.contains('on') && t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } else showPage('landing'); return; }

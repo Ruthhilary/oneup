@@ -84,6 +84,18 @@ Drivers use **their own cars**, so before they can accept a single job they must
 
 Only when all four are verified do the **Jobs** and **Trips** tabs unlock, and the driver sees a clear "you're cleared to drive" confirmation before taking work. (Sign in as a driver to see an already-qualified account; create a new driver account to walk the funnel.)
 
+## Access control (who can do what)
+
+Three separate, enforced tiers — a token for one can never act as another:
+
+| Tier | Can do | Cannot do |
+|------|--------|-----------|
+| **Rider** | Own account, choose/pay for plans, book + view own trips | Any driver route (qualify, shifts, payouts) or admin route |
+| **Driver** | Own account, qualification, shifts & dispatch, payout account, own jobs | Rider plan/payment routes, admin routes |
+| **Admin** | Approve/reject drivers, trigger driver payouts | Nothing rider/driver‑specific; uses a **separate admin token** (never a user token) |
+
+Every protected endpoint checks the caller's role (`403` otherwise). Sessions expire — **30 days** for riders/drivers, **1 day** for admin — and **Log out** deletes the session server‑side. The admin key is required (and the server refuses to start in production if it's left at the default).
+
 ## Pricing model (Lagos, ₦)
 
 Positioning: **one flat rate that never surges** — priced around Bolt's ₦160/km sticker, so riders pay ~30% less than the ₦230/km peak fares that hit exactly when they travel.

@@ -316,17 +316,35 @@ function adminDriver(u) {
     qualified: !!u.qualified, earningsToday: u.earnings_today
   };
 }
+// Access-control model — three separate tiers, enforced below:
+//   • rider  — own account, plans, payments, own trips (no driver or admin routes)
+//   • driver — own account, qualification, shifts/dispatch, payouts, own jobs (no rider plan/pay, no admin)
+//   • admin  — approve/reject drivers, trigger payouts; separate token, never a user token
+// Sessions expire so stale tokens can't live forever.
+const SESSION_TTL_MS = 30 * 86400000; // riders/drivers: 30 days
+const ADMIN_TTL_MS = 1 * 86400000;    // admin: 1 day (more sensitive)
+function expired(createdAt, ttl) { return !createdAt || (Date.now() - new Date(createdAt).getTime() > ttl); }
 function authAdmin(req) {
   const t = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-  return t && DB.prepare('SELECT token FROM admin_sessions WHERE token=?').get(t);
+  if (!t) return null;
+  const s = DB.prepare('SELECT token, created_at FROM admin_sessions WHERE token=?').get(t);
+  if (!s) return null;
+  if (expired(s.created_at, ADMIN_TTL_MS)) { DB.prepare('DELETE FROM admin_sessions WHERE token=?').run(t); return null; }
+  return s;
 }
 function getUser(id) { return DB.prepare('SELECT * FROM users WHERE id=?').get(id); }
 function authUser(req) {
-  const h = req.headers['authorization'] || '';
-  const t = h.replace(/^Bearer\s+/i, '');
+  const t = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
   if (!t) return null;
-  const s = DB.prepare('SELECT user_id FROM sessions WHERE token=?').get(t);
-  return s ? getUser(s.user_id) : null;
+  const s = DB.prepare('SELECT user_id, created_at FROM sessions WHERE token=?').get(t);
+  if (!s) return null;
+  if (expired(s.created_at, SESSION_TTL_MS)) { DB.prepare('DELETE FROM sessions WHERE token=?').run(t); return null; }
+  return getUser(s.user_id);
+}
+// enforce a role on an endpoint; returns true and sends 403 if the caller isn't allowed
+function denyRole(me, res, role) {
+  if (me.role !== role) { send(res, 403, { error: role === 'driver' ? 'Drivers only.' : 'Riders only.' }); return true; }
+  return false;
 }
 function makeSession(userId) {
   const t = newToken();
@@ -467,6 +485,12 @@ async function api(req, res, url) {
   if (!me) return send(res, 401, { error: 'Not signed in.' });
 
   if (p === '/me' && req.method === 'GET') return send(res, 200, { user: clientUser(me) });
+
+  if (p === '/logout' && req.method === 'POST') {
+    const t = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+    DB.prepare('DELETE FROM sessions WHERE token=?').run(t);
+    return send(res, 200, { ok: true });
+  }
 
   // ---- account verification ----
   if (p === '/verify/confirm' && req.method === 'POST') {
