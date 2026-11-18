@@ -3,7 +3,7 @@
   'use strict';
 
   var TOKEN_KEY = 'oneup_token';
-  var state = { role: 'rider', mode: 'create', pendingPlan: null, user: null, trips: [], inspectionBooked: false, bgRunning: false };
+  var state = { role: 'rider', mode: 'create', pendingPlan: null, user: null, trips: [], inspectionBooked: false, bgRunning: false, features: {}, book: null };
   var DOCS = ["Driver's licence", "Vehicle registration", "Insurance certificate", "Roadworthiness certificate", "Proof the car is yours"];
   var QSTEPS = [
     { id: 'vehicle', title: 'Your vehicle', desc: 'Must be a 2018 or newer car that you own and drive.' },
@@ -66,6 +66,7 @@
     var creating = state.mode === 'create';
     fName.style.display = creating ? 'block' : 'none';
     if (fPhone) fPhone.style.display = creating ? 'block' : 'none';
+    if ($('#forgot-wrap')) $('#forgot-wrap').hidden = creating;
     if ($('#auth-err')) $('#auth-err').innerHTML = '';
     var noun = state.role === 'rider' ? 'rider' : 'driver';
     titleEl.textContent = state.mode === 'create' ? 'Create your account' : 'Welcome back';
@@ -108,7 +109,12 @@
     return loadTrips().then(function () {
       if (!driver) show('r-home');
       else show(u.qualified ? 'dv-home' : 'dv-qualify');
+      maybePromptVerify();
     });
+  }
+  function maybePromptVerify() {
+    var u = state.user, f = state.features;
+    if (u && !u.verified && f && (f.email || f.sms)) openVerify();
   }
   function loadTrips() {
     return api('/trips').then(function (r) { state.trips = r.trips || []; }).catch(function () { state.trips = []; }).then(renderTripLists);
@@ -166,6 +172,8 @@
     if (view === 'dv-jobs') renderDriverJobs();
     if (view === 'dv-shifts') loadShifts();
     if (view === 'dv-online') enterDispatch();
+    if (view === 'dv-account') renderDriverAccount();
+    if (view === 'r-book') setupBook();
     if (view === 'r-home') renderRiderHome();
     if (view === 'r-plan') renderPlanView();
     if (view === 'r-matching') delay(function () { show('r-matched'); }, 1800);
@@ -304,12 +312,128 @@
     }
   }
   function completeRide() {
-    api('/trips', 'POST', { from: 'Lekki Phase 1', to: 'Victoria Island', km: 9.2 })
+    var b = state.book || { from: 'Pickup', to: 'Destination', km: 9.2 };
+    api('/trips', 'POST', { from: b.from, to: b.to, km: b.km })
       .then(function (r) { state.user = r.user; state.trips.unshift(r.trip); renderTripLists(); renderRiderHome(); $('#r-after').textContent = Math.round(state.user.kmLeft * 10) / 10 + ' km'; })
       .catch(function (e) { toast(e.message); })
       .then(function () { show('r-complete'); checkLimit(state.user); });
   }
+  // ---- real booking (Google distance) ----
+  function setBookUI(km, mins) {
+    if ($('#b-km')) $('#b-km').textContent = km ? km + ' km' : '— km';
+    if ($('#b-mins')) $('#b-mins').textContent = mins ? '~' + mins + ' min' : 'enter a route';
+    if ($('#b-charged')) $('#b-charged').textContent = km ? km + ' km' : '— km';
+  }
+  function setupBook() {
+    var maps = state.features && state.features.maps;
+    if ($('#b-quote')) $('#b-quote').hidden = !maps;
+    if ($('#b-locate')) $('#b-locate').hidden = !maps;
+    state.book = null;
+    if (maps) { setBookUI(0, 0); }
+    else {
+      // Maps not configured yet: a fixed estimate so the flow still works.
+      if ($('#b-from') && !$('#b-from').value) $('#b-from').value = 'Lekki Phase 1';
+      if ($('#b-to') && !$('#b-to').value) $('#b-to').value = 'Victoria Island';
+      state.book = { from: $('#b-from').value, to: $('#b-to').value, km: 9.2 };
+      setBookUI(9.2, 22);
+    }
+  }
+  function getQuote() {
+    var from = ($('#b-from').value || '').trim(), to = ($('#b-to').value || '').trim();
+    if (!from || !to) { toast('Enter pickup and destination.'); return; }
+    $('#b-quote').disabled = true;
+    var oarg = /^-?\d+\.\d+,-?\d+\.\d+$/.test(from) ? from : from + ', Lagos, Nigeria';
+    api('/distance', 'POST', { origin: oarg, dest: to + ', Lagos, Nigeria' })
+      .then(function (r) { state.book = { from: from, to: to, km: r.km }; setBookUI(r.km, r.mins); toast('Route priced: ' + r.km + ' km, no surge.'); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { $('#b-quote').disabled = false; });
+  }
+  function geolocate() {
+    if (!navigator.geolocation) { toast('Location not available.'); return; }
+    toast('Getting your location…');
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      $('#b-from').value = pos.coords.latitude.toFixed(5) + ',' + pos.coords.longitude.toFixed(5);
+      toast('Pickup set to your location.');
+    }, function () { toast('Could not get your location.'); });
+  }
+
+  // ---- verify account ----
+  function openVerify() {
+    var f = state.features;
+    if ($('#verify-body')) $('#verify-body').textContent = 'We sent a 6-digit code to ' + (f && f.sms && state.user.role ? 'your email/phone' : 'your email') + '. Enter it to verify your account.';
+    if ($('#verify-err')) $('#verify-err').innerHTML = '';
+    if ($('#verify-code')) $('#verify-code').value = '';
+    $('#verify').hidden = false;
+  }
+  function confirmVerify() {
+    var code = ($('#verify-code').value || '').trim();
+    api('/verify/confirm', 'POST', { code: code })
+      .then(function (r) { state.user = r.user; $('#verify').hidden = true; toast('Account verified ✓'); })
+      .catch(function (e) { $('#verify-err').innerHTML = '<p class="err">' + e.message + '</p>'; });
+  }
+
+  // ---- password reset ----
+  function openReset() {
+    $('#reset-step1').hidden = false; $('#reset-step2').hidden = true;
+    $('#reset-err1').innerHTML = ''; $('#reset-err2').innerHTML = '';
+    $('#reset-email').value = $('#a-email').value || '';
+    $('#reset').hidden = false;
+  }
+  function sendReset() {
+    var email = ($('#reset-email').value || '').trim();
+    if (!email) { $('#reset-err1').innerHTML = '<p class="err">Enter your email.</p>'; return; }
+    api('/reset/request', 'POST', { role: state.role, email: email }).then(function (r) {
+      if (r.emailConfigured === false) { $('#reset-err1').innerHTML = '<p class="err">Email isn\'t set up yet, so codes can\'t be sent.</p>'; return; }
+      state.resetEmail = email; $('#reset-step1').hidden = true; $('#reset-step2').hidden = false;
+    }).catch(function (e) { $('#reset-err1').innerHTML = '<p class="err">' + e.message + '</p>'; });
+  }
+  function confirmReset() {
+    var code = ($('#reset-code').value || '').trim(), np = $('#reset-pass').value;
+    api('/reset/confirm', 'POST', { role: state.role, email: state.resetEmail, code: code, newPassword: np })
+      .then(function () { $('#reset').hidden = true; toast('Password changed — sign in with your new password.'); })
+      .catch(function (e) { $('#reset-err2').innerHTML = '<p class="err">' + e.message + '</p>'; });
+  }
+
+  // ---- driver account + payout ----
+  function renderDriverAccount() {
+    var u = state.user, host = $('#dv-account-body'); if (!host || !u) return;
+    var ti = u.tierInfo || {}, initials = (u.name || 'D').split(' ').map(function (x) { return x[0]; }).slice(0, 2).join('').toUpperCase();
+    var payout = state.features && state.features.payments
+      ? (u.hasBank
+        ? '<div class="row"><span class="sm muted">Payout account</span><b class="sm">' + (u.accountName || 'Saved') + '</b></div><button class="btn line block sm" style="margin-top:10px" data-bank>Update payout account</button>'
+        : '<div class="row"><span class="sm muted">Payout account</span><span class="pill warn">Not added</span></div><button class="btn solid block sm" style="margin-top:10px" data-bank>Add payout account</button>')
+      : '<div class="row"><span class="sm muted">Payout account</span><span class="sm muted">available when payments go live</span></div>';
+    host.innerHTML =
+      '<div class="card"><div class="car-badge"><div class="avatar">' + initials + '</div><div><b>' + (u.name || 'Driver') + '</b><p class="sm muted">' + (u.phone || u.email) + (u.verified ? ' · verified ✓' : '') + '</p></div></div></div>' +
+      '<div class="card"><div class="row"><span class="sm muted">Tier</span><span class="pill on">' + (ti.tier || 'Bronze') + (ti.bonusPerKm ? ' · +₦' + ti.bonusPerKm + '/km' : '') + '</span></div>' +
+      '<div class="row" style="margin-top:8px"><span class="sm muted">Weekly floor</span><b class="sm num">' + (ti.floor ? money(ti.floor) : '—') + '</b></div>' +
+      '<div style="margin-top:10px"></div>' + payout + '</div>';
+  }
+  function openBank() {
+    if (!(state.features && state.features.payments)) { toast('Payouts go live once payments are set up.'); return; }
+    $('#bank-err').innerHTML = ''; $('#bank-acct').value = '';
+    var sel = $('#bank-select'); sel.innerHTML = '<option>Loading banks…</option>';
+    api('/banks').then(function (r) {
+      sel.innerHTML = (r.banks || []).map(function (b) { return '<option value="' + b.code + '">' + b.name + '</option>'; }).join('') || '<option value="">No banks</option>';
+    }).catch(function () { sel.innerHTML = '<option value="">Could not load banks</option>'; });
+    $('#bank').hidden = false;
+  }
+  function saveBank() {
+    var code = $('#bank-select').value, acct = ($('#bank-acct').value || '').trim();
+    api('/bank', 'POST', { bankCode: code, accountNumber: acct })
+      .then(function (r) { state.user = r.user; $('#bank').hidden = true; toast('Payout account saved: ' + (r.user.accountName || '')); renderDriverAccount(); })
+      .catch(function (e) { $('#bank-err').innerHTML = '<p class="err">' + e.message + '</p>'; });
+  }
+
   function switchPlan(plan) {
+    // With payments live, selecting a plan goes through Paystack checkout.
+    if (state.features && state.features.payments && state.user && state.user.role === 'rider') {
+      $('#limit').hidden = true;
+      api('/pay/init', 'POST', { plan: plan })
+        .then(function (d) { toast('Opening secure checkout…'); window.location.href = d.authorizationUrl; })
+        .catch(function (e) { toast(e.message); });
+      return;
+    }
     api('/plan', 'POST', { plan: plan })
       .then(function (r) { state.user = r.user; state.limitKey = ''; $('#limit').hidden = true; renderRiderHome(); renderPlanView(); toast('Plan updated to ' + plan + '.'); show('r-home'); })
       .catch(function (e) { toast(e.message); });
@@ -572,7 +696,28 @@
     var biz = e.target.closest('[data-biz]'); if (biz) { $('#biz').hidden = false; return; }
     var lc = e.target.closest('[data-limitclose]'); if (lc) { $('#limit').hidden = true; return; }
     var sh = e.target.closest('[data-shift]'); if (sh) { bookShift(sh.dataset.shift, sh.dataset.shiftact); return; }
+    if (e.target.closest('[data-bank]')) { openBank(); return; }
   });
+  // booking
+  $('#b-quote').addEventListener('click', getQuote);
+  $('#b-locate').addEventListener('click', geolocate);
+  $('#b-confirm').addEventListener('click', function () {
+    var from = ($('#b-from').value || '').trim(), to = ($('#b-to').value || '').trim();
+    if (state.features && state.features.maps && !(state.book && state.book.km)) { toast('Tap “Get price” to measure the route first.'); return; }
+    if (!state.book) state.book = { km: 9.2 };
+    state.book.from = from || 'Pickup'; state.book.to = to || 'Destination';
+    show('r-matching');
+  });
+  // verify / reset / bank modals
+  $('#verify-go').addEventListener('click', confirmVerify);
+  $('#verify-resend').addEventListener('click', function () { api('/verify/resend', 'POST').then(function () { toast('New code sent.'); }).catch(function (e) { toast(e.message); }); });
+  $('#verifyclose').addEventListener('click', function () { $('#verify').hidden = true; });
+  $('#reset-send').addEventListener('click', sendReset);
+  $('#reset-confirm').addEventListener('click', confirmReset);
+  $('#resetclose').addEventListener('click', function () { $('#reset').hidden = true; });
+  $('#bank-save').addEventListener('click', saveBank);
+  $('#bankclose').addEventListener('click', function () { $('#bank').hidden = true; });
+  $('#forgot').addEventListener('click', function (e) { e.preventDefault(); openReset(); });
   $('#bizclose').addEventListener('click', function () { $('#biz').hidden = true; });
   $('#biz').addEventListener('click', function (e) { if (e.target === $('#biz')) $('#biz').hidden = true; });
   $('#limitclose').addEventListener('click', function () { $('#limit').hidden = true; });
@@ -642,11 +787,35 @@
     if (rj) { var card = rj.closest('.acard'); var reason = card ? (($('.areason', card) || {}).value || '') : ''; adminDecision(rj.dataset.reject, 'reject', reason); return; }
   });
 
+  // --------------------------------------------------------- integrations
+  function loadConfig() {
+    return api('/config').then(function (c) {
+      state.features = c || {};
+      if (c && c.maps && c.mapsBrowser) loadMaps(c.mapsBrowser);
+    }).catch(function () { state.features = {}; });
+  }
+  function loadMaps(key) {
+    if (window.google && window.google.maps) return;
+    var s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&libraries=places';
+    s.async = true; s.defer = true; document.head.appendChild(s);
+  }
+  function verifyPayment(ref) {
+    try { history.replaceState({}, '', location.pathname); } catch (e) {}
+    api('/pay/verify', 'POST', { reference: ref }).then(function (r) {
+      state.user = r.user; renderRiderHome(); renderPlanView();
+      toast(r.paid ? 'Payment confirmed — your plan is active.' : 'Payment not completed.');
+      if (r.paid) show('r-home');
+    }).catch(function (e) { toast(e.message); });
+  }
+
   // ----------------------------------------------------------------- boot
   syncAuth();
-  (function boot() {
-    if (!token()) { showPage('landing'); return; }
+  loadConfig().then(function () {
+    var payRef = new URLSearchParams(location.search).get('pay');
+    if (!token()) { showPage('landing'); if (payRef) { try { history.replaceState({}, '', location.pathname); } catch (e) {} } return; }
     api('/me').then(function (r) { state.user = r.user; return enterApp(); })
+      .then(function () { if (payRef) verifyPayment(payRef); })
       .catch(function () { setToken(''); showPage('landing'); });
-  })();
+  });
 })();

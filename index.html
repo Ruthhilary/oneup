@@ -145,6 +145,7 @@
     <div id="auth-err"></div>
     <button class="btn solid block" id="authsubmit" type="submit" style="margin-top:4px">Create rider account</button>
   </form>
+  <p class="sm" id="forgot-wrap" style="text-align:center;margin-top:10px" hidden><a href="#" id="forgot">Forgot password?</a></p>
   <p class="auth-note">Your password is securely hashed. By continuing you agree to OneUp's terms. Drivers must pass qualification and approval before taking jobs.</p>
 </div></div>
 
@@ -188,11 +189,13 @@
 
       <div class="app-screen" data-screen="r-book">
         <div class="vhead"><h2>Where to?</h2></div>
-        <div class="card"><div class="trip-line"><div class="track"><span class="dot fill"></span><span class="line"></span><span class="dot"></span></div><div style="flex:1"><div class="field app"><label>Pickup</label><input value="Lekki Phase 1" aria-label="Pickup"></div><div class="field app" style="margin-bottom:0"><label>Destination</label><input value="Victoria Island" aria-label="Destination"></div></div></div></div>
-        <div class="card"><div class="row"><div><b>OneUp Standard</b><p class="sm muted">Corolla class · 2018+</p></div><div style="text-align:right"><b class="num">9.2 km</b><p class="sm muted">~22 min</p></div></div></div>
-        <div class="card fill"><div class="row"><span class="sm">Charged from credits</span><b class="num">9.2 km</b></div><div class="row" style="margin-top:6px"><span class="sm">Cash price</span><b class="num">₦0.00</b></div><div class="row" style="margin-top:8px"><span class="pill good">No surge · flat rate</span><span class="sm good">~₦700 under Bolt</span></div></div>
+        <div class="card"><div class="trip-line"><div class="track"><span class="dot fill"></span><span class="line"></span><span class="dot"></span></div><div style="flex:1"><div class="field app"><label>Pickup</label><input id="b-from" placeholder="e.g. Lekki Phase 1" aria-label="Pickup"></div><div class="field app" style="margin-bottom:0"><label>Destination</label><input id="b-to" placeholder="e.g. Victoria Island" aria-label="Destination"></div></div></div></div>
+        <button class="btn line block" id="b-locate" style="margin-top:10px" hidden>Use my current location for pickup</button>
+        <button class="btn line block" id="b-quote" style="margin-top:10px" hidden>Get price</button>
+        <div class="card"><div class="row"><div><b>OneUp Standard</b><p class="sm muted">Corolla class · 2018+</p></div><div style="text-align:right"><b class="num" id="b-km">— km</b><p class="sm muted" id="b-mins">enter a route</p></div></div></div>
+        <div class="card fill"><div class="row"><span class="sm">Charged from credits</span><b class="num" id="b-charged">— km</b></div><div class="row" style="margin-top:8px"><span class="pill good">No surge · flat rate</span></div></div>
         <div class="spacer"></div>
-        <button class="btn solid block" style="margin-top:14px" data-go="r-matching">Confirm pickup</button>
+        <button class="btn solid block" style="margin-top:14px" id="b-confirm">Confirm pickup</button>
       </div>
 
       <div class="app-screen" data-screen="r-matching"><div class="center-stack"><div class="spin"></div><h2 style="margin-top:20px">Finding your ride</h2><p>Priority-matching a curated driver near Lekki Phase 1…</p></div></div>
@@ -316,8 +319,7 @@
 
       <div class="app-screen" data-screen="dv-account">
         <div class="vhead"><h2>Account</h2></div>
-        <div class="card"><div class="car-badge"><div class="avatar">EO</div><div><b>Emeka Obi</b><p class="sm muted">+234 802 555 1212</p></div></div></div>
-        <div class="card"><div class="row"><span class="sm muted">Tier</span><span class="pill on">Gold · +₦35k/mo</span></div><div class="row" style="margin-top:8px"><span class="sm muted">Payout account</span><b class="sm">GTBank ••• 2290</b></div><div class="row" style="margin-top:8px"><span class="sm muted">Weekly floor</span><b class="sm num">₦70,000</b></div></div>
+        <div id="dv-account-body"></div>
         <div class="spacer"></div><button class="btn line block" style="margin-top:12px" data-logout>Log out</button>
       </div>
 
@@ -420,6 +422,46 @@
   <h3 id="limit-title">Heads up</h3>
   <p id="limit-body" style="color:var(--ink-2);line-height:1.5"></p>
   <div id="limit-actions" style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap"></div>
+</div></div>
+
+<!-- ============ VERIFY ACCOUNT ============ -->
+<div class="overlay" id="verify" hidden><div class="obox">
+  <button class="close" id="verifyclose" aria-label="Close">✕</button>
+  <h3>Verify your account</h3>
+  <p id="verify-body" style="color:var(--ink-2);line-height:1.5">We sent a 6-digit code to your email. Enter it to verify your account.</p>
+  <div class="field"><label for="verify-code">Verification code</label><input id="verify-code" inputmode="numeric" maxlength="6" placeholder="123456"></div>
+  <div id="verify-err"></div>
+  <div style="display:flex;gap:10px;margin-top:12px"><button class="btn solid" id="verify-go">Verify</button><button class="btn line" id="verify-resend">Resend code</button></div>
+</div></div>
+
+<!-- ============ PASSWORD RESET ============ -->
+<div class="overlay" id="reset" hidden><div class="obox">
+  <button class="close" id="resetclose" aria-label="Close">✕</button>
+  <h3>Reset your password</h3>
+  <div id="reset-step1">
+    <p style="color:var(--ink-2);line-height:1.5">Enter your account email — we'll send a reset code.</p>
+    <div class="field"><label for="reset-email">Email</label><input id="reset-email" type="email" placeholder="you@example.com"></div>
+    <div id="reset-err1"></div>
+    <button class="btn solid block" id="reset-send">Send reset code</button>
+  </div>
+  <div id="reset-step2" hidden>
+    <p style="color:var(--ink-2);line-height:1.5">Enter the code from your email and choose a new password.</p>
+    <div class="field"><label for="reset-code">Code</label><input id="reset-code" inputmode="numeric" placeholder="123456"></div>
+    <div class="field"><label for="reset-pass">New password</label><input id="reset-pass" type="password" placeholder="At least 8 characters"></div>
+    <div id="reset-err2"></div>
+    <button class="btn solid block" id="reset-confirm">Set new password</button>
+  </div>
+</div></div>
+
+<!-- ============ DRIVER PAYOUT ACCOUNT ============ -->
+<div class="overlay" id="bank" hidden><div class="obox">
+  <button class="close" id="bankclose" aria-label="Close">✕</button>
+  <h3>Payout account</h3>
+  <p style="color:var(--ink-2);line-height:1.5">Where OneUp sends your earnings. Verified with your bank.</p>
+  <div class="field"><label for="bank-select">Bank</label><select id="bank-select"></select></div>
+  <div class="field"><label for="bank-acct">Account number</label><input id="bank-acct" inputmode="numeric" maxlength="10" placeholder="10 digits"></div>
+  <div id="bank-err"></div>
+  <button class="btn solid block" id="bank-save">Save payout account</button>
 </div></div>
 
 <div id="toast" role="status" aria-live="polite"></div>

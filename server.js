@@ -63,7 +63,21 @@ ensureCol('users', 'accept_pct', 'INTEGER DEFAULT 0');      // % of offered trip
 ensureCol('users', 'online_hrs', 'INTEGER DEFAULT 0');      // hours online this week
 ensureCol('users', 'queue_pos', 'INTEGER DEFAULT 0');      // fair-dispatch queue position when online
 DB.exec('CREATE TABLE IF NOT EXISTS shift_bookings (slot_id TEXT, user_id INTEGER)');
+DB.exec(`CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, reference TEXT, amount INTEGER,
+  plan TEXT, status TEXT DEFAULT 'pending', created_at TEXT
+)`);
 ensureCol('users', 'phone', 'TEXT');
+ensureCol('users', 'verified', 'INTEGER DEFAULT 0');       // email/phone verified
+ensureCol('users', 'verify_code', 'TEXT');
+ensureCol('users', 'verify_exp', 'TEXT');
+ensureCol('users', 'reset_code', 'TEXT');
+ensureCol('users', 'reset_exp', 'TEXT');
+ensureCol('users', 'plan_expires', 'TEXT');                // when the paid cycle ends
+ensureCol('users', 'bank_code', 'TEXT');                   // driver payout bank
+ensureCol('users', 'account_number', 'TEXT');
+ensureCol('users', 'account_name', 'TEXT');
+ensureCol('users', 'recipient_code', 'TEXT');              // Paystack transfer recipient
 
 const ADMIN_KEY = process.env.ADMIN_KEY || 'oneup-admin';
 if (process.env.NODE_ENV === 'production' && ADMIN_KEY === 'oneup-admin') {
@@ -182,7 +196,81 @@ function verifyPw(pw, stored) {
 }
 function newToken() { return crypto.randomBytes(24).toString('hex'); }
 function now() { return new Date().toISOString(); }
+function sixDigit() { return String(crypto.randomInt(100000, 1000000)); }
+function plusMinutes(m) { return new Date(Date.now() + m * 60000).toISOString(); }
+function plusDays(d) { return new Date(Date.now() + d * 86400000).toISOString(); }
 function normEmail(e) { return String(e || '').trim().toLowerCase(); }
+
+// --- third-party integrations (all optional; switch on when keys are present) ---
+const CFG = {
+  paystackSecret: process.env.PAYSTACK_SECRET_KEY || '',
+  paystackPublic: process.env.PAYSTACK_PUBLIC_KEY || '',
+  mapsServer:     process.env.GOOGLE_MAPS_SERVER_KEY || '',
+  mapsBrowser:    process.env.GOOGLE_MAPS_BROWSER_KEY || '',
+  resendKey:      process.env.RESEND_API_KEY || '',
+  mailFrom:       process.env.MAIL_FROM || 'OneUp <onboarding@resend.dev>',
+  termiiKey:      process.env.TERMII_API_KEY || '',
+  termiiSender:   process.env.TERMII_SENDER || 'OneUp',
+  appUrl:         (process.env.APP_URL || '').replace(/\/$/, '')
+};
+const FEAT = { payments: !!CFG.paystackSecret, maps: !!CFG.mapsServer, email: !!CFG.resendKey, sms: !!CFG.termiiKey };
+
+async function httpJSON(url, opts) {
+  const r = await fetch(url, opts);
+  const text = await r.text();
+  let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  return { ok: r.ok, status: r.status, data };
+}
+function paystack(p, method, body) {
+  return httpJSON('https://api.paystack.co' + p, {
+    method: method,
+    headers: { Authorization: 'Bearer ' + CFG.paystackSecret, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+}
+async function measureKm(origin, dest) {
+  const u = new URL('https://maps.googleapis.com/maps/api/distancematrix/json');
+  u.searchParams.set('origins', origin); u.searchParams.set('destinations', dest);
+  u.searchParams.set('units', 'metric'); u.searchParams.set('key', CFG.mapsServer);
+  const r = await httpJSON(u.toString());
+  const el = r.data && r.data.rows && r.data.rows[0] && r.data.rows[0].elements && r.data.rows[0].elements[0];
+  if (!el || el.status !== 'OK') throw new Error('Could not measure that route — check the addresses.');
+  return { km: Math.round((el.distance.value / 1000) * 10) / 10, mins: Math.round(el.duration.value / 60), text: el.distance.text };
+}
+async function sendEmail(to, subject, html) {
+  if (!FEAT.email) return false;
+  const r = await httpJSON('https://api.resend.com/emails', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + CFG.resendKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: CFG.mailFrom, to: [to], subject, html })
+  });
+  if (!r.ok) console.error('email send failed', r.status, r.data);
+  return r.ok;
+}
+async function sendSMS(to, text) {
+  if (!FEAT.sms || !to) return false;
+  const r = await httpJSON('https://api.ng.termii.com/api/sms/send', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: to, from: CFG.termiiSender, sms: text, type: 'plain', channel: 'generic', api_key: CFG.termiiKey })
+  });
+  return r.ok;
+}
+// send a verification code by whatever channel is configured
+async function sendVerification(u) {
+  if (!FEAT.email && !FEAT.sms) return false;
+  const code = sixDigit();
+  DB.prepare('UPDATE users SET verify_code=?, verify_exp=? WHERE id=?').run(code, plusMinutes(30), u.id);
+  const msg = 'Your OneUp verification code is ' + code + '. It expires in 30 minutes.';
+  if (FEAT.email) await sendEmail(u.email, 'Verify your OneUp account', '<p>' + msg + '</p>');
+  if (FEAT.sms && u.phone) await sendSMS(u.phone, msg);
+  return true;
+}
+// mark a payment paid and activate the rider's plan for a 30-day cycle
+function activatePayment(reference) {
+  const pay = DB.prepare('SELECT * FROM payments WHERE reference=?').get(reference);
+  if (!pay || pay.status === 'success') return;
+  DB.prepare("UPDATE payments SET status='success' WHERE reference=?").run(reference);
+  DB.prepare('UPDATE users SET plan=?, km_used=0, plan_expires=? WHERE id=?').run(pay.plan, plusDays(30), pay.user_id);
+}
 function validEmail(e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); }
 function validPhone(p) { return !p || /^[0-9+][0-9\s-]{6,}$/.test(String(p)); }
 
@@ -210,7 +298,11 @@ function clientUser(u) {
     tier: u.tier,
     tierInfo: u.role === 'driver' ? driverEarnings(u) : null,
     status: u.status || 'incomplete',
-    rejectReason: u.reject_reason || ''
+    rejectReason: u.reject_reason || '',
+    verified: !!u.verified,
+    planExpires: u.plan_expires || null,
+    hasBank: !!u.recipient_code,
+    accountName: u.account_name || ''
   };
 }
 function adminDriver(u) {
@@ -248,17 +340,36 @@ function send(res, code, obj) {
   res.writeHead(code, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY_HEADERS));
   res.end(body);
 }
-function readBody(req) {
+function readRaw(req) {
   return new Promise((resolve) => {
     let d = ''; req.on('data', c => { d += c; if (d.length > 1e6) req.destroy(); });
-    req.on('end', () => { try { resolve(d ? JSON.parse(d) : {}); } catch { resolve({}); } });
+    req.on('end', () => resolve(d));
   });
 }
 
 // --- API --------------------------------------------------------------------
 async function api(req, res, url) {
   const p = url.pathname.replace(/^\/api/, '');
-  const body = (req.method === 'POST') ? await readBody(req) : {};
+  let raw = '', body = {};
+  if (req.method === 'POST') { raw = await readRaw(req); try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; } }
+
+  // public: what integrations are live (so the client adapts)
+  if (p === '/config' && req.method === 'GET') {
+    return send(res, 200, { payments: FEAT.payments, maps: FEAT.maps, email: FEAT.email, sms: FEAT.sms, paystackPublic: CFG.paystackPublic, mapsBrowser: CFG.mapsBrowser });
+  }
+
+  // Paystack webhook (no auth; verified by signature over the RAW body)
+  if (p === '/paystack/webhook' && req.method === 'POST') {
+    if (!FEAT.payments) return send(res, 200, { ok: true });
+    const sig = req.headers['x-paystack-signature'] || '';
+    const expected = crypto.createHmac('sha512', CFG.paystackSecret).update(raw).digest('hex');
+    if (sig !== expected) return send(res, 401, { error: 'bad signature' });
+    try {
+      const ev = JSON.parse(raw);
+      if (ev.event === 'charge.success' && ev.data && ev.data.reference) activatePayment(ev.data.reference, ev.data);
+    } catch {}
+    return send(res, 200, { ok: true });
+  }
 
   if (p === '/signup' && req.method === 'POST') {
     const role = body.role, name = String(body.name || '').trim(), email = normEmail(body.email);
@@ -277,6 +388,7 @@ async function api(req, res, url) {
       'INSERT INTO users(role,name,email,phone,pass,created_at,plan,km_used,tier) VALUES(?,?,?,?,?,?,?,?,?)'
     ).run(role, name, email, phone || null, hashPw(password), now(), role === 'rider' ? chosen : 'Starter', 0, 'Bronze');
     const u = getUser(info.lastInsertRowid);
+    if (FEAT.email || FEAT.sms) sendVerification(u).catch(() => {});
     return send(res, 200, { token: makeSession(u.id), user: clientUser(u) });
   }
 
@@ -286,6 +398,27 @@ async function api(req, res, url) {
     const u = DB.prepare('SELECT * FROM users WHERE email=? AND role=?').get(email, role);
     if (!u || !verifyPw(password, u.pass)) return send(res, 401, { error: 'No account found, or wrong password. Check your details or sign up.' });
     return send(res, 200, { token: makeSession(u.id), user: clientUser(u) });
+  }
+
+  // ---- password reset (public) ----
+  if (p === '/reset/request' && req.method === 'POST') {
+    const role = body.role, email = normEmail(body.email);
+    const u = (role && email) ? DB.prepare('SELECT * FROM users WHERE email=? AND role=?').get(email, role) : null;
+    if (u && FEAT.email) {
+      const code = sixDigit();
+      DB.prepare('UPDATE users SET reset_code=?, reset_exp=? WHERE id=?').run(code, plusMinutes(30), u.id);
+      sendEmail(u.email, 'Reset your OneUp password',
+        '<p>Your OneUp password reset code is <b>' + code + '</b>. It expires in 30 minutes. If you didn\'t request this, ignore this email.</p>').catch(() => {});
+    }
+    return send(res, 200, { ok: true, emailConfigured: FEAT.email }); // never reveal whether the account exists
+  }
+  if (p === '/reset/confirm' && req.method === 'POST') {
+    const role = body.role, email = normEmail(body.email), code = String(body.code || ''), np = String(body.newPassword || '');
+    if (np.length < 8) return send(res, 400, { error: 'New password must be at least 8 characters.' });
+    const u = DB.prepare('SELECT * FROM users WHERE email=? AND role=?').get(email, role);
+    if (!u || !u.reset_code || u.reset_code !== code || !u.reset_exp || u.reset_exp < now()) return send(res, 400, { error: 'Invalid or expired code.' });
+    DB.prepare('UPDATE users SET pass=?, reset_code=NULL, reset_exp=NULL WHERE id=?').run(hashPw(np), u.id);
+    return send(res, 200, { ok: true });
   }
 
   // ---- admin ----
@@ -314,6 +447,18 @@ async function api(req, res, url) {
       } else return send(res, 400, { error: 'Unknown decision.' });
       return send(res, 200, { driver: adminDriver(getUser(u.id)) });
     }
+    if (p === '/admin/payout' && req.method === 'POST') {
+      if (!FEAT.payments) return send(res, 400, { error: 'Payouts are not set up yet.' });
+      const u = DB.prepare("SELECT * FROM users WHERE id=? AND role='driver'").get(body.id);
+      if (!u) return send(res, 404, { error: 'Driver not found.' });
+      if (!u.recipient_code) return send(res, 400, { error: 'Driver has not added a payout account.' });
+      const amount = Math.max(0, Math.round(u.week_earn || 0));
+      if (amount <= 0) return send(res, 400, { error: 'Nothing to pay out.' });
+      const t = await paystack('/transfer', 'POST', { source: 'balance', amount: amount * 100, recipient: u.recipient_code, reason: 'OneUp driver earnings' });
+      if (!t.ok || !t.data.status) return send(res, 502, { error: (t.data && t.data.message) || 'Transfer failed — is Paystack Transfers enabled and the balance funded?' });
+      DB.prepare('UPDATE users SET week_earn=0 WHERE id=?').run(u.id);
+      return send(res, 200, { ok: true, amount: amount });
+    }
     return send(res, 404, { error: 'Unknown admin endpoint.' });
   }
 
@@ -322,6 +467,82 @@ async function api(req, res, url) {
   if (!me) return send(res, 401, { error: 'Not signed in.' });
 
   if (p === '/me' && req.method === 'GET') return send(res, 200, { user: clientUser(me) });
+
+  // ---- account verification ----
+  if (p === '/verify/confirm' && req.method === 'POST') {
+    const u = getUser(me.id);
+    if (u.verified) return send(res, 200, { user: clientUser(u) });
+    const code = String(body.code || '');
+    if (!u.verify_code || u.verify_code !== code || !u.verify_exp || u.verify_exp < now()) return send(res, 400, { error: 'Invalid or expired code.' });
+    DB.prepare('UPDATE users SET verified=1, verify_code=NULL, verify_exp=NULL WHERE id=?').run(me.id);
+    return send(res, 200, { user: clientUser(getUser(me.id)) });
+  }
+  if (p === '/verify/resend' && req.method === 'POST') {
+    if (!FEAT.email && !FEAT.sms) return send(res, 400, { error: 'Verification is not set up yet.' });
+    await sendVerification(getUser(me.id));
+    return send(res, 200, { ok: true });
+  }
+
+  // ---- payments (rider subscriptions via Paystack) ----
+  if (p === '/pay/init' && req.method === 'POST') {
+    if (me.role !== 'rider') return send(res, 403, { error: 'Riders only.' });
+    if (!FEAT.payments) return send(res, 400, { error: 'Payments are not set up yet.' });
+    const plan = PLANS[body.plan] ? body.plan : null;
+    if (!plan) return send(res, 400, { error: 'Unknown plan.' });
+    const reference = 'oneup_' + newToken().slice(0, 20);
+    const amount = PLANS[plan].price * 100; // in kobo
+    DB.prepare('INSERT INTO payments(user_id,reference,amount,plan,status,created_at) VALUES(?,?,?,?,?,?)').run(me.id, reference, amount, plan, 'pending', now());
+    const r = await paystack('/transaction/initialize', 'POST', {
+      email: me.email, amount: amount, reference: reference,
+      callback_url: (CFG.appUrl || ('http://localhost:' + PORT)) + '/?pay=' + reference,
+      metadata: { userId: me.id, plan: plan }
+    });
+    if (!r.ok || !r.data.status) return send(res, 502, { error: (r.data && r.data.message) || 'Could not start payment.' });
+    return send(res, 200, { authorizationUrl: r.data.data.authorization_url, reference: reference });
+  }
+  if (p === '/pay/verify' && req.method === 'POST') {
+    if (!FEAT.payments) return send(res, 400, { error: 'Payments are not set up yet.' });
+    const reference = String(body.reference || '');
+    const pay = DB.prepare('SELECT * FROM payments WHERE reference=? AND user_id=?').get(reference, me.id);
+    if (!pay) return send(res, 404, { error: 'Payment not found.' });
+    const r = await paystack('/transaction/verify/' + encodeURIComponent(reference), 'GET');
+    if (r.ok && r.data.data && r.data.data.status === 'success' && r.data.data.amount >= pay.amount) {
+      activatePayment(reference);
+      return send(res, 200, { paid: true, user: clientUser(getUser(me.id)) });
+    }
+    return send(res, 200, { paid: false, user: clientUser(getUser(me.id)) });
+  }
+
+  // ---- real distance (Google) ----
+  if (p === '/distance' && req.method === 'POST') {
+    if (!FEAT.maps) return send(res, 400, { error: 'Maps are not set up yet.' });
+    const origin = String(body.origin || '').trim(), dest = String(body.dest || '').trim();
+    if (!origin || !dest) return send(res, 400, { error: 'Enter pickup and destination.' });
+    try { return send(res, 200, await measureKm(origin, dest)); }
+    catch (e) { return send(res, 400, { error: e.message }); }
+  }
+
+  if (p === '/banks' && req.method === 'GET') {
+    if (!FEAT.payments) return send(res, 200, { banks: [] });
+    const r = await paystack('/bank?currency=NGN&perPage=100', 'GET');
+    const banks = (r.ok && r.data.data) ? r.data.data.map(b => ({ name: b.name, code: b.code })) : [];
+    return send(res, 200, { banks: banks });
+  }
+
+  // ---- driver payout bank (Paystack transfer recipient) ----
+  if (p === '/bank' && req.method === 'POST') {
+    if (me.role !== 'driver') return send(res, 403, { error: 'Drivers only.' });
+    if (!FEAT.payments) return send(res, 400, { error: 'Payouts are not set up yet.' });
+    const bankCode = String(body.bankCode || ''), acct = String(body.accountNumber || '');
+    if (!bankCode || !/^\d{10}$/.test(acct)) return send(res, 400, { error: 'Enter your bank and 10-digit account number.' });
+    const resolved = await paystack('/bank/resolve?account_number=' + acct + '&bank_code=' + bankCode, 'GET');
+    if (!resolved.ok || !resolved.data.status) return send(res, 400, { error: 'Could not verify that account.' });
+    const name = resolved.data.data.account_name;
+    const rec = await paystack('/transferrecipient', 'POST', { type: 'nuban', name: name, account_number: acct, bank_code: bankCode, currency: 'NGN' });
+    if (!rec.ok || !rec.data.status) return send(res, 400, { error: 'Could not save payout account.' });
+    DB.prepare('UPDATE users SET bank_code=?, account_number=?, account_name=?, recipient_code=? WHERE id=?').run(bankCode, acct, name, rec.data.data.recipient_code, me.id);
+    return send(res, 200, { user: clientUser(getUser(me.id)) });
+  }
 
   if (p === '/plan' && req.method === 'POST') {
     if (me.role !== 'rider') return send(res, 403, { error: 'Riders only.' });

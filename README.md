@@ -6,7 +6,7 @@ This is a working prototype: a marketing landing page, a sign‑in / create‑ac
 
 Accounts are **real**: you sign up with a name, email and password (hashed with scrypt). Sign‑in only logs into an existing account — it never auto‑creates one. New drivers start unqualified and must pass the four checks **and** be approved by an admin before they can take a job.
 
-> Not yet wired (next steps): online **payments** (subscriptions + driver payouts), **live GPS / maps** (distances are entered, not measured yet), email/SMS **verification** and password reset. These need third‑party accounts (Paystack, Google Maps, an email/SMS provider) and are the next build phase.
+**Payments, maps and verification are fully built in** — they switch on automatically when you add the matching API keys (see *Going fully live* below). Until then the app runs in a safe fallback: plan changes are instant (no charge), ride distance uses a fixed estimate, and accounts skip verification.
 
 ## Run it on localhost
 
@@ -31,7 +31,25 @@ The repo is ready to deploy to **[Render](https://render.com)** straight from Gi
 
 Configuration is all via environment variables: `PORT`, `ADMIN_KEY` (required in production — the server refuses to start with the default), and `DB_PATH` (set to `/data/oneup.db` for the persistent disk). Security headers and a production guard are built in.
 
-> Before a true public launch you still need: Paystack/Maps/verification wired (next phase), plus the real‑world requirements — a **Lagos e‑hailing operator licence**, **insurance**, business registration and a background‑check provider.
+## Going fully live (add your keys)
+
+Everything below is already coded — set these environment variables (in Render → your service → **Environment**) and the feature turns on. Leave one blank and that feature stays in fallback.
+
+| Feature | Env vars | Where to get it |
+|---------|----------|-----------------|
+| **Payments** — rider subscriptions (Paystack Checkout) + driver payouts (Paystack Transfers) | `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY` | [paystack.com](https://paystack.com) → Settings → API Keys. Payouts also need Transfers enabled (business verification) and a funded balance. |
+| **Maps** — real pickup→destination distance + "use my location" | `GOOGLE_MAPS_SERVER_KEY` (Distance Matrix API), `GOOGLE_MAPS_BROWSER_KEY` (Maps JavaScript + Places, restricted to your domain) | [console.cloud.google.com](https://console.cloud.google.com) → enable *Distance Matrix API*, *Maps JavaScript API*, *Places API*; create two keys. |
+| **Email** — account verification + password reset | `RESEND_API_KEY`, `MAIL_FROM` (e.g. `OneUp <noreply@yourdomain>`) | [resend.com](https://resend.com) (free tier). Verify your sending domain for best delivery. |
+| **SMS** (optional) — phone verification | `TERMII_API_KEY`, `TERMII_SENDER` | [termii.com](https://termii.com) — Nigerian SMS provider. |
+| App URL (for payment return + reset links) | `APP_URL` (e.g. `https://oneup.onrender.com`) | your deployed Render URL |
+
+After deploy, set the Paystack **webhook** URL to `https://<your-app>/api/paystack/webhook` (Paystack dashboard → Settings → API Keys & Webhooks) so payments confirm even if the rider closes the tab.
+
+Check what's live anytime: `GET /api/config` returns which features are on.
+
+## Still needed for a true public launch (not code)
+
+A **Lagos e‑hailing operator licence** (~₦8m + renewal), **comprehensive insurance**, **business registration (CAC)**, NDPR data‑protection registration, and a **background‑check provider** for drivers. These are legal/operational, not technical.
 
 ## What's inside
 
