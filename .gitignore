@@ -5,6 +5,11 @@
 oneup.db
 oneup.db-*
 
+# Secrets — API keys live here locally, NEVER committed
+.env
+.env.*
+!.env.example
+
 # Node (only if you add tooling later)
 node_modules/
 npm-debug.log*

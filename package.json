@@ -4,7 +4,7 @@
   "private": true,
   "description": "OneUp — subscription ride service for Lagos. Static front-end + Node backend (real accounts, driver qualification + tiers, shifts/dispatch, trips persist to SQLite).",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --env-file-if-exists=.env server.js"
   },
   "engines": {
     "node": ">=24"
