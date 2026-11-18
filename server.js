@@ -9,7 +9,14 @@ const { DatabaseSync } = require('node:sqlite');
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const DB = new DatabaseSync(path.join(ROOT, 'oneup.db'));
+// DB_PATH lets a host mount a persistent disk (e.g. /data/oneup.db) so data survives restarts.
+const DB_PATH = process.env.DB_PATH || path.join(ROOT, 'oneup.db');
+const DB = new DatabaseSync(DB_PATH);
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin'
+};
 
 // --- schema -----------------------------------------------------------------
 DB.exec(`
@@ -29,7 +36,7 @@ CREATE TABLE IF NOT EXISTS users (
   inspection INTEGER DEFAULT 0,
   background INTEGER DEFAULT 0,
   earnings_today INTEGER DEFAULT 0,
-  tier TEXT DEFAULT 'Gold'
+  tier TEXT DEFAULT 'Bronze'
 );
 CREATE UNIQUE INDEX IF NOT EXISTS u_email_role ON users(email, role);
 CREATE TABLE IF NOT EXISTS sessions (
@@ -49,16 +56,118 @@ function ensureCol(t, c, def) { if (!hasCol(t, c)) DB.exec(`ALTER TABLE ${t} ADD
 ensureCol('users', 'status', "TEXT DEFAULT 'incomplete'");  // incomplete | pending | approved | rejected
 ensureCol('users', 'reject_reason', 'TEXT');
 ensureCol('users', 'submitted_at', 'TEXT');
+ensureCol('users', 'veh_fuel', "TEXT DEFAULT 'petrol'");    // cng | hybrid | petrol
+ensureCol('users', 'week_earn', 'INTEGER DEFAULT 0');       // ₦ paid to driver this week
+ensureCol('users', 'trips_week', 'INTEGER DEFAULT 0');      // completed trips this week
+ensureCol('users', 'accept_pct', 'INTEGER DEFAULT 0');      // % of offered trips accepted
+ensureCol('users', 'online_hrs', 'INTEGER DEFAULT 0');      // hours online this week
+ensureCol('users', 'queue_pos', 'INTEGER DEFAULT 0');      // fair-dispatch queue position when online
+DB.exec('CREATE TABLE IF NOT EXISTS shift_bookings (slot_id TEXT, user_id INTEGER)');
+ensureCol('users', 'phone', 'TEXT');
 
 const ADMIN_KEY = process.env.ADMIN_KEY || 'oneup-admin';
+if (process.env.NODE_ENV === 'production' && ADMIN_KEY === 'oneup-admin') {
+  console.error('FATAL: set a strong ADMIN_KEY environment variable before deploying to production.');
+  process.exit(1);
+}
 
 const PLANS = {
-  Lite:     { km: 280,  rate: 143, price: 40000,  used: 60 },
-  Commuter: { km: 620,  rate: 129, price: 80000,  used: 93 },
-  Pro:      { km: 1300, rate: 115, price: 150000, used: 160 }
+  Starter:  { km: 120,  rate: 167, price: 20000,  used: 25 },
+  Lite:     { km: 350,  rate: 163, price: 57000,  used: 70 },
+  Commuter: { km: 700,  rate: 160, price: 112000, used: 120 },
+  Pro:      { km: 1400, rate: 160, price: 224000, used: 240 },
+  Max:      { km: 2000, rate: 155, price: 310000, used: 360 }
 };
+const LADDER = ['Starter', 'Lite', 'Commuter', 'Pro', 'Max']; // ascending by size
+const TOP_RATE = 155; // ₦/km for usage beyond the biggest plan (Max's own rate — never a penalty)
+
+// Auto-upgrade: the bill follows actual usage UP the ladder — no overflow cliff.
+// A member who crosses their plan is rolled to the tier that covers them for the
+// cycle and billed that tier's price; past Max, extra km bill at Max's own rate.
+function effectiveBill(planName, kmUsed) {
+  let chosen = LADDER.indexOf(planName); if (chosen < 0) chosen = 2;
+  let idx = chosen;
+  for (let i = chosen; i < LADDER.length; i++) { idx = i; if (PLANS[LADDER[i]].km >= kmUsed) break; }
+  const maxTier = PLANS[LADDER[LADDER.length - 1]];
+  let price = PLANS[LADDER[idx]].price, overflowKm = 0, overflowDue = 0;
+  if (kmUsed > maxTier.km) { overflowKm = kmUsed - maxTier.km; overflowDue = Math.round(overflowKm * TOP_RATE); price = maxTier.price + overflowDue; }
+  return { tier: LADDER[idx], price, upgraded: idx > chosen, overflowKm, overflowDue };
+}
 const DOC_COUNT = 5;
-const DRIVER_RATE = 120; // naira per km, 0% commission
+const DRIVER_MIN = 700;     // per-trip floor so short/slow trips stay fair to drivers
+
+// Fuel-aware driver pay. Lagos petrol ~₦1,380/l ≈ ₦153/km fuel, so a thirsty petrol
+// car leaves the driver underwater. OneUp gives EFFICIENT VEHICLES PRIORITY: hybrids
+// (petrol, no special refuelling) roughly halve fuel to ~₦70/km, and CNG is cheaper
+// still where refuelling exists. Thirsty petrol drivers get a higher interim rate so
+// no one drives at a loss — and are steered to an efficient/hybrid car.
+const FUEL = {
+  cng:    { rate: 120, fuelPerKm: 45,  label: 'CNG' },
+  hybrid: { rate: 143, fuelPerKm: 70,  label: 'Hybrid' },
+  petrol: { rate: 170, fuelPerKm: 153, label: 'Petrol' }
+};
+const MAINT_PER_KM = 18;    // rough vehicle maintenance per km
+function fuelOf(u) { return FUEL[u && u.veh_fuel] || FUEL.petrol; }
+
+// Driver earnings model. Base pay is PURE pay-per-trip (no trip, no pay), so no one
+// is paid to idle. A weekly guaranteed FLOOR is a conditional top-up offered only to
+// drivers who commit hours, stay available and accept enough trips — it protects a
+// driver against OneUp failing to supply rides, never against choosing not to work.
+// Tiers are earned by performance and unlock a higher floor + a per-km bonus.
+const TIERS = {
+  Bronze:   { floor: 0,      bonus: 0,  minHrs: 0,  minAccept: 0,  minTrips: 0 },
+  Silver:   { floor: 70000,  bonus: 5,  minHrs: 30, minAccept: 80, minTrips: 25 },
+  Gold:     { floor: 95000,  bonus: 10, minHrs: 40, minAccept: 80, minTrips: 45 },
+  Platinum: { floor: 120000, bonus: 15, minHrs: 45, minAccept: 85, minTrips: 70 }
+};
+function driverRate(u) { return fuelOf(u).rate + (TIERS[u && u.tier] || TIERS.Bronze).bonus; }
+// Shift booking: drivers reserve demand slots; caps keep each slot busy so supply
+// matches demand (no idle crowding). Fair dispatch rotates rides to whoever has
+// waited longest. Peak demand is met by pulling more drivers in, not by rider surge.
+const SHIFTS = [
+  { id: 'lekki-am', zone: 'Lekki / VI', window: 'Morning peak · 6–10am', hrs: 4, demand: 'High',   cap: 12, base: 7 },
+  { id: 'lekki-pm', zone: 'Lekki / VI', window: 'Evening peak · 4–8pm',  hrs: 4, demand: 'High',   cap: 14, base: 9 },
+  { id: 'main-am',  zone: 'Mainland',   window: 'Morning peak · 6–10am', hrs: 4, demand: 'High',   cap: 12, base: 8 },
+  { id: 'main-mid', zone: 'Mainland',   window: 'Midday · 10am–4pm',     hrs: 6, demand: 'Low',    cap: 6,  base: 5 },
+  { id: 'ikeja-pm', zone: 'Ikeja',      window: 'Evening peak · 4–8pm',  hrs: 4, demand: 'Medium', cap: 8,  base: 4 },
+  { id: 'night',    zone: 'All zones',  window: 'Night · 8pm–12am',      hrs: 4, demand: 'Medium', cap: 8,  base: 3 }
+];
+const SHIFT_BY_ID = {}; SHIFTS.forEach(s => { SHIFT_BY_ID[s.id] = s; });
+function shiftList(userId) {
+  return SHIFTS.map(s => {
+    const mine = !!DB.prepare('SELECT 1 FROM shift_bookings WHERE slot_id=? AND user_id=?').get(s.id, userId);
+    const others = DB.prepare('SELECT COUNT(*) c FROM shift_bookings WHERE slot_id=?').get(s.id).c;
+    const booked = s.base + others;
+    return { id: s.id, zone: s.zone, window: s.window, hrs: s.hrs, demand: s.demand, cap: s.cap, booked: booked, spotsLeft: Math.max(0, s.cap - booked), full: booked >= s.cap && !mine, mine: mine };
+  });
+}
+function committedHrs(userId) {
+  return DB.prepare('SELECT slot_id FROM shift_bookings WHERE user_id=?').all(userId)
+    .reduce((a, r) => a + ((SHIFT_BY_ID[r.slot_id] || { hrs: 0 }).hrs), 0);
+}
+function dispatchZone(userId) {
+  const r = DB.prepare('SELECT slot_id FROM shift_bookings WHERE user_id=? LIMIT 1').get(userId);
+  return r ? SHIFT_BY_ID[r.slot_id].zone : 'Lekki / VI';
+}
+function onlineCount(zone) { return ({ 'Lekki / VI': 7, 'Mainland': 8, 'Ikeja': 5, 'All zones': 6 })[zone] || 6; }
+function dispatchState(userId) {
+  const u = getUser(userId), zone = dispatchZone(userId), online = onlineCount(zone);
+  const pos = Math.min(Math.max(u.queue_pos || online, 1), online);
+  return { zone: zone, online: online, position: pos, etaMin: Math.max(1, (pos - 1) * 2), next: pos <= 1 };
+}
+function driverEarnings(u) {
+  const t = TIERS[u.tier] || TIERS.Bronze;
+  const hrs = u.online_hrs || 0, acc = u.accept_pct || 0, trips = u.trips_week || 0, earn = u.week_earn || 0;
+  const met = { hours: hrs >= t.minHrs, accept: acc >= t.minAccept, trips: trips >= t.minTrips };
+  const eligible = u.tier !== 'Bronze' && met.hours && met.accept && met.trips;
+  const topUp = eligible ? Math.max(0, t.floor - earn) : 0;
+  return {
+    tier: u.tier || 'Bronze', floor: t.floor, bonusPerKm: t.bonus,
+    weekEarnings: earn, tripsWeek: trips, acceptPct: acc, onlineHrs: hrs,
+    need: { minHrs: t.minHrs, minAccept: t.minAccept, minTrips: t.minTrips },
+    met: met, floorEligible: eligible, floorTopUp: topUp, weekGuaranteed: earn + topUp
+  };
+}
 
 // --- helpers ----------------------------------------------------------------
 function hashPw(pw) {
@@ -73,22 +182,33 @@ function verifyPw(pw, stored) {
 }
 function newToken() { return crypto.randomBytes(24).toString('hex'); }
 function now() { return new Date().toISOString(); }
+function normEmail(e) { return String(e || '').trim().toLowerCase(); }
+function validEmail(e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); }
+function validPhone(p) { return !p || /^[0-9+][0-9\s-]{6,}$/.test(String(p)); }
 
 function clientUser(u) {
   const plan = PLANS[u.plan] || PLANS.Commuter;
+  const eb = effectiveBill(u.plan in PLANS ? u.plan : 'Commuter', u.km_used);
   const docs = JSON.parse(u.docs || '[]');
   return {
     id: u.id, role: u.role, name: u.name, email: u.email,
     plan: u.plan, planKm: plan.km, rate: plan.rate, price: plan.price,
     kmUsed: u.km_used, kmLeft: Math.max(0, plan.km - u.km_used),
+    billPlan: eb.tier, billNow: eb.price, autoUpgraded: eb.upgraded,
+    overflowKm: eb.overflowKm, overflowDue: eb.overflowDue, topRate: TOP_RATE,
     qualified: !!u.qualified,
-    vehicle: { make: u.veh_make || '', year: u.veh_year || null },
+    vehicle: { make: u.veh_make || '', year: u.veh_year || null, fuel: u.veh_fuel || 'petrol' },
+    fuelLabel: fuelOf(u).label,
+    payPerKm: fuelOf(u).rate,
+    fuelPerKm: fuelOf(u).fuelPerKm,
+    netPerKm: fuelOf(u).rate - fuelOf(u).fuelPerKm - MAINT_PER_KM,
     docs: docs,
     docsDone: docs.length >= DOC_COUNT,
     inspection: !!u.inspection,
     background: !!u.background,
     earningsToday: u.earnings_today,
     tier: u.tier,
+    tierInfo: u.role === 'driver' ? driverEarnings(u) : null,
     status: u.status || 'incomplete',
     rejectReason: u.reject_reason || ''
   };
@@ -96,7 +216,7 @@ function clientUser(u) {
 function adminDriver(u) {
   return {
     id: u.id, name: u.name, email: u.email, status: u.status || 'incomplete',
-    vehicle: { make: u.veh_make || '', year: u.veh_year || null },
+    vehicle: { make: u.veh_make || '', year: u.veh_year || null, fuel: u.veh_fuel || 'petrol' },
     eligible: !!(u.veh_year && u.veh_year >= 2018),
     docsCount: JSON.parse(u.docs || '[]').length, docsTotal: DOC_COUNT,
     inspection: !!u.inspection, background: !!u.background,
@@ -125,7 +245,7 @@ function makeSession(userId) {
 // --- JSON responses ---------------------------------------------------------
 function send(res, code, obj) {
   const body = JSON.stringify(obj);
-  res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.writeHead(code, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, SECURITY_HEADERS));
   res.end(body);
 }
 function readBody(req) {
@@ -141,38 +261,30 @@ async function api(req, res, url) {
   const body = (req.method === 'POST') ? await readBody(req) : {};
 
   if (p === '/signup' && req.method === 'POST') {
-    const { role, name, email, password, plan } = body;
-    if (!role || !email || !password) return send(res, 400, { error: 'Missing fields.' });
+    const role = body.role, name = String(body.name || '').trim(), email = normEmail(body.email);
+    const password = String(body.password || ''), phone = String(body.phone || '').trim(), plan = body.plan;
+    if (role !== 'rider' && role !== 'driver') return send(res, 400, { error: 'Choose rider or driver.' });
+    if (name.length < 2) return send(res, 400, { error: 'Please enter your full name.' });
+    if (!validEmail(email)) return send(res, 400, { error: 'Enter a valid email address.' });
+    if (!validPhone(phone)) return send(res, 400, { error: 'Enter a valid phone number.' });
+    if (password.length < 8) return send(res, 400, { error: 'Password must be at least 8 characters.' });
     const exists = DB.prepare('SELECT id FROM users WHERE email=? AND role=?').get(email, role);
-    if (exists) return send(res, 409, { error: 'An account with this email already exists for that role. Try signing in.' });
-    const chosen = PLANS[plan] ? plan : 'Commuter';
+    if (exists) return send(res, 409, { error: 'An account with this email already exists for that role. Please sign in.' });
+    // Riders start on a plan they chose (billing is gated until payment is live); drivers start
+    // unqualified and must pass the checks + admin approval before taking any job.
+    const chosen = PLANS[plan] ? plan : 'Starter';
     const info = DB.prepare(
-      'INSERT INTO users(role,name,email,pass,created_at,plan,km_used) VALUES(?,?,?,?,?,?,?)'
-    ).run(role, name || '', email, hashPw(password), now(), chosen, role === 'rider' ? PLANS[chosen].used : 0);
+      'INSERT INTO users(role,name,email,phone,pass,created_at,plan,km_used,tier) VALUES(?,?,?,?,?,?,?,?,?)'
+    ).run(role, name, email, phone || null, hashPw(password), now(), role === 'rider' ? chosen : 'Starter', 0, 'Bronze');
     const u = getUser(info.lastInsertRowid);
     return send(res, 200, { token: makeSession(u.id), user: clientUser(u) });
   }
 
   if (p === '/login' && req.method === 'POST') {
-    const { role, email, password } = body;
-    if (!role || !email || !password) return send(res, 400, { error: 'Missing fields.' });
-    let u = DB.prepare('SELECT * FROM users WHERE email=? AND role=?').get(email, role);
-    if (u) {
-      if (!verifyPw(password, u.pass)) return send(res, 401, { error: 'Wrong password.' });
-    } else {
-      // Demo convenience: create the account on first sign-in.
-      if (role === 'driver') {
-        const info = DB.prepare(`INSERT INTO users(role,name,email,pass,created_at,qualified,veh_make,veh_year,docs,inspection,background,earnings_today,tier)
-          VALUES(?,?,?,?,?,1,?,?,?,1,1,?,?)`).run('driver', 'Emeka Obi', email, hashPw(password), now(),
-          'Toyota Corolla', 2020, JSON.stringify(['Driver\'s licence','Vehicle registration','Insurance certificate','Roadworthiness certificate','Proof the car is yours']), 18400, 'Gold');
-        DB.prepare("UPDATE users SET status='approved' WHERE id=?").run(info.lastInsertRowid);
-        u = getUser(info.lastInsertRowid);
-      } else {
-        const info = DB.prepare('INSERT INTO users(role,name,email,pass,created_at,plan,km_used) VALUES(?,?,?,?,?,?,?)')
-          .run('rider', 'Ada Okeke', email, hashPw(password), now(), 'Commuter', PLANS.Commuter.used);
-        u = getUser(info.lastInsertRowid);
-      }
-    }
+    const role = body.role, email = normEmail(body.email), password = String(body.password || '');
+    if (!role || !email || !password) return send(res, 400, { error: 'Enter your email and password.' });
+    const u = DB.prepare('SELECT * FROM users WHERE email=? AND role=?').get(email, role);
+    if (!u || !verifyPw(password, u.pass)) return send(res, 401, { error: 'No account found, or wrong password. Check your details or sign up.' });
     return send(res, 200, { token: makeSession(u.id), user: clientUser(u) });
   }
 
@@ -227,7 +339,8 @@ async function api(req, res, url) {
       const year = parseInt(body.year, 10);
       if (!year) return send(res, 400, { error: 'Select a model year.' });
       if (year < 2018) return send(res, 400, { error: `A ${year} vehicle isn't eligible. OneUp requires 2018 or newer.` });
-      DB.prepare('UPDATE users SET veh_make=?, veh_year=? WHERE id=?').run(String(body.make || 'Your car'), year, me.id);
+      const fuel = FUEL[body.fuel] ? body.fuel : 'petrol';
+      DB.prepare('UPDATE users SET veh_make=?, veh_year=?, veh_fuel=? WHERE id=?').run(String(body.make || 'Your car'), year, fuel, me.id);
     } else if (a === 'doc') {
       const docs = JSON.parse(me.docs || '[]');
       if (body.name && docs.indexOf(body.name) === -1) docs.push(body.name);
@@ -248,6 +361,35 @@ async function api(req, res, url) {
     return send(res, 200, { user: clientUser(getUser(me.id)) });
   }
 
+  if (p === '/shifts' && req.method === 'GET') {
+    if (me.role !== 'driver') return send(res, 403, { error: 'Drivers only.' });
+    return send(res, 200, { shifts: shiftList(me.id), committedHrs: committedHrs(me.id) });
+  }
+  if (p === '/shifts' && req.method === 'POST') {
+    if (me.role !== 'driver') return send(res, 403, { error: 'Drivers only.' });
+    const s = SHIFT_BY_ID[body.slotId]; if (!s) return send(res, 400, { error: 'Unknown shift.' });
+    const mine = !!DB.prepare('SELECT 1 FROM shift_bookings WHERE slot_id=? AND user_id=?').get(s.id, me.id);
+    if (body.action === 'cancel') {
+      DB.prepare('DELETE FROM shift_bookings WHERE slot_id=? AND user_id=?').run(s.id, me.id);
+    } else if (!mine) {
+      const others = DB.prepare('SELECT COUNT(*) c FROM shift_bookings WHERE slot_id=?').get(s.id).c;
+      if (s.base + others >= s.cap) return send(res, 409, { error: 'That shift is full — the cap keeps demand and pay high. Pick another slot.' });
+      DB.prepare('INSERT INTO shift_bookings(slot_id,user_id) VALUES(?,?)').run(s.id, me.id);
+    }
+    return send(res, 200, { shifts: shiftList(me.id), committedHrs: committedHrs(me.id) });
+  }
+  if (p === '/online' && req.method === 'POST') {
+    if (me.role !== 'driver') return send(res, 403, { error: 'Drivers only.' });
+    DB.prepare('UPDATE users SET queue_pos=? WHERE id=?').run(onlineCount(dispatchZone(me.id)), me.id); // join at the back
+    return send(res, 200, dispatchState(me.id));
+  }
+  if (p === '/dispatch' && req.method === 'GET') {
+    if (me.role !== 'driver') return send(res, 403, { error: 'Drivers only.' });
+    let pos = me.queue_pos || 0;                 // the line moves: drivers ahead get rides
+    if (pos > 1) DB.prepare('UPDATE users SET queue_pos=? WHERE id=?').run(pos - 1, me.id);
+    return send(res, 200, dispatchState(me.id));
+  }
+
   if (p === '/trips' && req.method === 'GET') {
     const rows = DB.prepare('SELECT from_loc,to_loc,km,amount,created_at FROM trips WHERE user_id=? ORDER BY id DESC LIMIT 50').all(me.id);
     return send(res, 200, { trips: rows });
@@ -259,8 +401,9 @@ async function api(req, res, url) {
     let amount = 0;
     if (me.role === 'driver') {
       if (!me.qualified) return send(res, 403, { error: 'Not qualified to take jobs yet.' });
-      amount = Math.round(km * DRIVER_RATE);
-      DB.prepare('UPDATE users SET earnings_today = earnings_today + ? WHERE id=?').run(amount, me.id);
+      amount = Math.max(DRIVER_MIN, Math.round(km * driverRate(me)));
+      DB.prepare('UPDATE users SET earnings_today = earnings_today + ?, week_earn = week_earn + ?, trips_week = trips_week + 1, queue_pos = ? WHERE id=?')
+        .run(amount, amount, onlineCount(dispatchZone(me.id)), me.id); // fair rotation: back of the queue after a ride
     } else {
       DB.prepare('UPDATE users SET km_used = km_used + ? WHERE id=?').run(km, me.id);
     }
@@ -281,7 +424,7 @@ function serveStatic(req, res, url) {
   const full = path.join(ROOT, file);
   fs.readFile(full, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': TYPES[path.extname(full)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    res.writeHead(200, Object.assign({ 'Content-Type': TYPES[path.extname(full)] || 'application/octet-stream', 'Cache-Control': 'no-cache' }, SECURITY_HEADERS));
     res.end(data);
   });
 }

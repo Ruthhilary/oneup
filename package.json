@@ -1,12 +1,12 @@
 {
   "name": "oneup",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "OneUp — subscription ride service for Lagos. Static front-end + Node backend (accounts, qualification, trips persist to SQLite).",
+  "description": "OneUp — subscription ride service for Lagos. Static front-end + Node backend (real accounts, driver qualification + tiers, shifts/dispatch, trips persist to SQLite).",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   }
 }

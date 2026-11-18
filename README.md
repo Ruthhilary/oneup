@@ -4,19 +4,34 @@ A subscription ride service for Lagos (and, next, other African cities). Members
 
 This is a working prototype: a marketing landing page, a sign‑in / create‑account flow, and two app dashboards — one for **riders**, one for **drivers** — backed by a small **Node server** that persists accounts, driver qualification status, and trips to a local SQLite database. Pricing research is behind the "Business case" link in the footer.
 
-> Prototype, not production: passwords are hashed but there's no email verification, HTTPS, or payment processing. For demo convenience, signing in with a new email creates that account.
+Accounts are **real**: you sign up with a name, email and password (hashed with scrypt). Sign‑in only logs into an existing account — it never auto‑creates one. New drivers start unqualified and must pass the four checks **and** be approved by an admin before they can take a job.
+
+> Not yet wired (next steps): online **payments** (subscriptions + driver payouts), **live GPS / maps** (distances are entered, not measured yet), email/SMS **verification** and password reset. These need third‑party accounts (Paystack, Google Maps, an email/SMS provider) and are the next build phase.
 
 ## Run it on localhost
 
-You need **Node 22 or newer** (for the built‑in SQLite module). No `npm install` — the server uses only Node built‑ins.
+You need **Node 24 or newer** (for the stable built‑in SQLite module; 22 works with `node --experimental-sqlite server.js`). No `npm install` — the server uses only Node built‑ins.
 
 ```bash
 cd oneup
 node server.js       # or: npm start
 ```
-Then open <http://localhost:3000>. The server serves the site **and** the API, and creates `oneup.db` on first run. Set a different port with `PORT=4000 node server.js`.
+Then open <http://localhost:3000>. The server serves the site **and** the API, and creates the database on first run. Set a different port with `PORT=4000 node server.js`.
 
-To reset all data, stop the server and delete `oneup.db`.
+Make your first approved driver: sign up as a driver → finish the 4 qualification steps → open **Admin** (footer, key `oneup-admin`) → **Approve**. To reset all data, stop the server and delete `oneup.db`.
+
+## Deploy it live (so real people can use it)
+
+The repo is ready to deploy to **[Render](https://render.com)** straight from GitHub:
+
+1. Push this repo to GitHub (it already is).
+2. On Render: **New + → Blueprint →** pick this repo. It reads `render.yaml` and sets everything up.
+3. Render generates a strong `ADMIN_KEY` for you (see it under the service's **Environment**). The included **1 GB disk** keeps accounts and trips across restarts (needs the paid *starter* instance; the free one works to try it but resets data on each deploy).
+4. You get a public `https://oneup.onrender.com`‑style URL. Share it — riders and drivers can sign up and use it.
+
+Configuration is all via environment variables: `PORT`, `ADMIN_KEY` (required in production — the server refuses to start with the default), and `DB_PATH` (set to `/data/oneup.db` for the persistent disk). Security headers and a production guard are built in.
+
+> Before a true public launch you still need: Paystack/Maps/verification wired (next phase), plus the real‑world requirements — a **Lagos e‑hailing operator licence**, **insurance**, business registration and a background‑check provider.
 
 ## What's inside
 
@@ -53,13 +68,29 @@ Only when all four are verified do the **Jobs** and **Trips** tabs unlock, and t
 
 ## Pricing model (Lagos, ₦)
 
-| Plan | Price / mo | Credits | Effective | vs Bolt sticker |
-|------|-----------|---------|-----------|-----------------|
-| Lite | ₦40,000 | 280 km | ₦143/km | ~11% cheaper |
-| Commuter | ₦80,000 | 620 km | ₦129/km | ~19% cheaper |
-| Pro | ₦150,000 | 1,300 km | ₦115/km | ~28% cheaper |
+Positioning: **one flat rate that never surges** — priced around Bolt's ₦160/km sticker, so riders pay ~30% less than the ₦230/km peak fares that hit exactly when they travel.
 
-Drivers are paid **₦120/km at 0% commission**, with a guaranteed weekly floor and tier bonuses. OneUp's margin comes from subscription breakage, plan mix, and overflow kilometres. Figures are 2025–26 estimates — validate with a pilot.
+| Plan | Price / mo | Credits | Effective | vs ₦230 peak |
+|------|-----------|---------|-----------|--------------|
+| Starter | ₦20,000 | 120 km | ₦167/km | ~27% under |
+| Lite | ₦57,000 | 350 km | ₦163/km | ~29% under |
+| Commuter | ₦112,000 | 700 km | ₦160/km | ~30% under |
+| Pro | ₦224,000 | 1,400 km | ₦160/km | ~30% under |
+| Max | ₦310,000 | 2,000 km | ₦155/km | ~33% under |
+
+Km buckets are sized to **real Lagos commutes** — Pro covers ~54 km/day, Max ~70 km/day — so a monthly plan no longer runs out mid-month. Every plan is profitable **even if the member uses all their kilometres** (Max ≈ 8%, Pro ≈ 11% gross at 100% use), so breakage is upside rather than survival. There is **no overflow cliff**: a member who uses up their plan is **auto-upgraded** to the tier that covers them for that cycle (never a penalty), and past Max, extra km bill at Max's own ₦155/km.
+
+Drivers are paid at **0% commission** (Bolt takes 25%, so at the same fare the OneUp driver keeps more) with a **₦700 per-trip floor**, a guaranteed weekly floor and tier bonuses. Pay is **fuel-aware**, and **efficient vehicles get priority**, because Lagos petrol (~₦1,380/l ≈ ₦153/km) would otherwise sink a driver:
+
+| Fuel | OneUp pays | Fuel/km | Maint. | Driver take-home |
+|------|-----------|---------|--------|------------------|
+| Hybrid (priority) | ₦143/km | ₦70 | ₦18 | **+₦55/km** |
+| CNG (where refuelling exists) | ₦120/km | ₦45 | ₦18 | +₦57/km |
+| Thirsty petrol | ₦170/km | ₦153 | ₦18 | −₦1/km |
+
+The fleet is **efficient/hybrid-first**. A hybrid runs on ordinary petrol (no special refuelling) but roughly halves fuel, so a hybrid driver clears a real wage on a fare that only matches Bolt's sticker. Thirsty-petrol drivers get a higher interim rate (never underwater) and are steered to an efficient car. Each driver sees their real take-home per km in the app's Vehicle tab.
+
+OneUp's margin comes from subscription breakage, plan mix, and profitable overflow. The app also **nudges riders onto the right-size plan** — up if they use 90%+, down if they use ≤35%. **Launch is concentrated** in one dense zone and expands only when the numbers work — density means less empty driving, which lifts driver take-home on the same fuel. Figures are 2026 estimates — validate with a pilot.
 
 ## Tech
 

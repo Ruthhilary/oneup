@@ -1,0 +1,25 @@
+# Render blueprint — deploys OneUp from your GitHub repo.
+# In Render: New + → Blueprint → pick this repo. It reads this file.
+services:
+  - type: web
+    name: oneup
+    runtime: node
+    # 'starter' (paid, ~$7/mo) is required for the persistent disk below so accounts
+    # and trips survive restarts/redeploys. 'free' also works to try it, but the disk
+    # is ignored and data resets on each deploy.
+    plan: starter
+    buildCommand: ""          # no build step — zero npm dependencies
+    startCommand: node server.js
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_KEY        # a strong admin key is generated for you (see it in the dashboard)
+        generateValue: true
+      - key: DB_PATH
+        value: /data/oneup.db
+    disk:
+      name: oneup-data
+      mountPath: /data
+      sizeGB: 1
